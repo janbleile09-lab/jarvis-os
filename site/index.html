@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title>JARVIS OS · Staff Board</title>
-<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="./styles.css?v=20261021b">
 </head>
 <body>
 
@@ -93,10 +93,16 @@
     <header class="top">
       <h1>JARVIS OS <span>· Staff Board</span></h1>
       <div class="pills" id="pills"></div>
+      <button class="btn voice" type="button" id="voice-btn" aria-label="Sprachnachricht an JARVIS aufnehmen">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M12 15a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 1 0-7 0v5.5A3.5 3.5 0 0 0 12 15Z"/>
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3.5M8.5 21.5h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span class="voice-label" id="voice-label">Sprachbefehl</span>
+      </button>
     </header>
 
     <div class="toolbar">
-      <button class="btn acc" type="button" id="voice-btn">Sprachnachricht an JARVIS</button>
       <span class="voice-state" id="voice-state"></span>
       <a class="btn plain" id="briefing-link" href="#" target="_blank" rel="noopener" hidden>Morgenbriefing</a>
     </div>
@@ -182,6 +188,6 @@
   </div>
 </noscript>
 
-<script type="module" src="./app.js"></script>
+<script type="module" src="./app.js?v=20261021b"></script>
 </body>
 </html>

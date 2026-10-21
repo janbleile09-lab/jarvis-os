@@ -346,6 +346,7 @@ async function boot() {
   wireLogin();
   wireGateChrome();
   wireTabs();
+  wireVoice();
   handleUrlError();
 
   sb.auth.onAuthStateChange((event) => {
@@ -2008,10 +2009,26 @@ function wireVoice() {
   let recorder = null;
   let chunks = [];
   let started = 0;
+  let ticker = null;
+  const label = $('#voice-label');
   const setStatus = (text, cls) => {
     if (!status) return;
     status.textContent = text;
     status.className = 'voice-state ' + (cls || '');
+  };
+  const startTicker = () => {
+    const tick = () => {
+      if (!label) return;
+      const secs = Math.floor((Date.now() - started) / 1000);
+      label.textContent = 'Aufnahme ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') + ' — tippen zum Senden';
+    };
+    tick();
+    ticker = setInterval(tick, 1000);
+  };
+  const stopTicker = () => {
+    if (ticker) { clearInterval(ticker); ticker = null; }
+    if (label) label.textContent = 'Sprachnachricht aufnehmen';
+    btn.classList.remove('rec');
   };
 
   btn.addEventListener('click', async () => {
@@ -2033,7 +2050,7 @@ function wireVoice() {
       recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach((track) => track.stop());
-        btn.textContent = 'Sprachnachricht an JARVIS';
+        stopTicker();
         const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
         if (blob.size < 2000) { setStatus('Aufnahme zu kurz.', 'warn'); return; }
         setStatus('Wird übertragen …', 'warn');
@@ -2052,8 +2069,9 @@ function wireVoice() {
         }
       };
       recorder.start();
-      btn.textContent = 'Aufnahme stoppen';
-      setStatus('Aufnahme läuft …', 'warn');
+      btn.classList.add('rec');
+      startTicker();
+      setStatus('Aufnahme läuft — nochmal tippen beendet sie.', 'warn');
     } catch (err) {
       setStatus('Mikrofon nicht freigegeben.', 'bad');
     }

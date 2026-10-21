@@ -423,3 +423,56 @@ i.t-cache,.legend .t-cache{background:#4a5a6b}
 .heat-label{font-size:10.5px;color:#8b95a5}
 .heat-tick{text-align:left}
 .heat-cell{height:13px;border-radius:2px;display:block}
+
+/* ---------------------------------------------------------------- Sprachknopf, praesent */
+
+.btn.voice{
+  display:inline-flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,#63b3ff,#2f7fd4);
+  color:#06121f;font-weight:700;font-size:14px;
+  border:0;border-radius:13px;padding:12px 18px;
+  box-shadow:0 8px 22px rgba(77,163,255,.30), inset 0 1px 0 rgba(255,255,255,.35);
+  cursor:pointer;transition:transform .12s ease, box-shadow .12s ease;
+}
+.btn.voice:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(77,163,255,.38)}
+.btn.voice:active{transform:translateY(0)}
+.btn.voice svg{width:20px;height:20px;fill:currentColor;flex:0 0 auto}
+.btn.voice svg path[fill="none"]{fill:none}
+
+.btn.voice.rec{
+  background:linear-gradient(135deg,#ff6b6b,#c62f2f);
+  color:#fff;
+  box-shadow:0 0 0 0 rgba(255,92,92,.55);
+  animation:pulse-rec 1.5s infinite;
+}
+@keyframes pulse-rec{
+  0%{box-shadow:0 0 0 0 rgba(255,92,92,.55)}
+  70%{box-shadow:0 0 0 14px rgba(255,92,92,0)}
+  100%{box-shadow:0 0 0 0 rgba(255,92,92,0)}
+}
+
+.toolbar{align-items:center}
+header.top{row-gap:10px}
+header.top .btn.voice{margin-left:10px}
+header.top .pills{margin-left:auto}
+.voice-state:empty{display:none}
+.voice-state{
+  font-size:12.5px;color:#b9c2cf;background:#141a20;
+  border:1px solid #26303a;border-radius:9px;padding:7px 11px;
+}
+
+@media (max-width:760px){
+  .btn.voice{
+    position:fixed;right:16px;bottom:18px;z-index:70;
+    width:62px;height:62px;padding:0;border-radius:50%;
+    justify-content:center;gap:0;
+    box-shadow:0 12px 28px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.08);
+  }
+  .btn.voice svg{width:26px;height:26px}
+  .btn.voice .voice-label{display:none}
+  .voice-state{
+    position:fixed;right:16px;bottom:92px;z-index:71;max-width:min(74vw,320px);
+    box-shadow:0 8px 20px rgba(0,0,0,.45);
+  }
+  .toolbar{margin:10px 0 2px}
+}
