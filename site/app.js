@@ -1518,6 +1518,7 @@ function renderOps(board) {
   renderWatchdog(board);
   renderIncidents(board);
   renderDevices(board);
+  renderPasswordChange();
   renderSecurityQuestion();
   renderSettings(board);
   renderSession();
@@ -1617,6 +1618,33 @@ function renderDevices(board) {
           el('th', { text: 'Bezeichnung' }), el('th', { text: 'Status' }), el('th', { text: 'Angelegt' }),
           el('th', { text: 'Freigeschaltet' }), el('th', { text: 'Zuletzt gesehen' }), el('th', { text: '' }))),
         el('tbody', {}, ...rows)))));
+}
+
+function renderPasswordChange() {
+  const box = $('#ops-password');
+  if (!box) return;
+  clear(box);
+
+  const p1 = el('input', { class: 'inp', type: 'password', autocomplete: 'new-password', placeholder: 'Neues Passwort' });
+  const p2 = el('input', { class: 'inp', type: 'password', autocomplete: 'new-password', placeholder: 'Passwort wiederholen' });
+  const msg = el('p', { class: 'msg' });
+  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Passwort ändern' });
+
+  btn.addEventListener('click', () => guard(btn, async () => {
+    if (p1.value.length < 12) { setMsg(msg, 'Mindestens 12 Zeichen.', 'warn'); return; }
+    if (p1.value !== p2.value) { setMsg(msg, 'Die beiden Eingaben sind unterschiedlich.', 'warn'); return; }
+    const { error } = await sb.auth.updateUser({ password: p1.value });
+    if (error) { setMsg(msg, error.message, 'bad'); return; }
+    p1.value = ''; p2.value = '';
+    setMsg(msg, 'Passwort geändert. Beim nächsten Login gilt das neue.', 'ok');
+  }));
+
+  box.append(el('div', { class: 'card' },
+    el('p', { class: 'sub', text: 'Ersetzt das Passwort aus der Einrichtung. Mindestens 12 Zeichen; ein Passwortsatz aus vier Wörtern ist gut merkbar.' }),
+    el('label', { class: 'lbl', text: 'Neues Passwort' }), p1,
+    el('label', { class: 'lbl', text: 'Wiederholen' }), p2,
+    el('div', { class: 'row' }, btn),
+    msg));
 }
 
 function renderSecurityQuestion() {
