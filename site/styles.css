@@ -508,3 +508,48 @@ header.top .pills{margin-left:auto}
   70%{box-shadow:0 0 0 6px rgba(53,208,127,0)}
   100%{box-shadow:0 0 0 0 rgba(53,208,127,0)}
 }
+
+/* ---------------------------------------------------------------- Direktmodus (JARVIS) */
+
+/* Die aktuelle Sitzung: eine Karte, die man auf dem Handy sofort lesen kann. */
+.card.jv{padding:16px 16px 14px}
+.card.jv .ch{margin-bottom:8px}
+.card.jv .task{font-size:15px;line-height:1.4;margin-bottom:8px}
+
+/* Was JARVIS von Jan braucht */
+.card .need{
+  border-top:1px solid var(--line);padding-top:11px;margin-top:11px;
+}
+.card .need:first-of-type{border-top:0;margin-top:4px;padding-top:0}
+
+/* Chat */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chips button.btn{font-size:12px;padding:6px 10px;white-space:nowrap;max-width:46vw;
+  overflow:hidden;text-overflow:ellipsis}
+.card.chat{padding:14px}
+.msgs{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto;
+  padding-right:2px;margin-bottom:12px}
+.bubble{
+  max-width:88%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.45;
+  border:1px solid var(--line);background:var(--panel2);white-space:pre-wrap;word-break:break-word;
+}
+.bubble.user{align-self:flex-end;background:#14212e;border-color:#2c4a6e;color:#dce9f8}
+.bubble.jarvis{align-self:flex-start}
+.bubble.system{align-self:center;background:#281616;border-color:#5c2c2c;color:#ffb3b3;font-size:12px}
+.bubble.working{color:var(--mut);display:flex;align-items:center;gap:7px}
+.bubble .ago{font-size:10.5px;color:#7d8794;margin-top:5px}
+.composer{display:flex;gap:8px;align-items:flex-end}
+.composer textarea{
+  flex:1 1 auto;min-height:52px;resize:vertical;padding:10px 12px;border-radius:10px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--fg);
+  font:inherit;font-size:13px;line-height:1.4;
+}
+.composer textarea:focus{outline:none;border-color:#2c4a6e}
+.composer button.btn{flex:0 0 auto;padding:10px 16px}
+.live.wait{color:var(--warn)}
+
+@media (max-width:640px){
+  .msgs{max-height:none}
+  .bubble{max-width:94%}
+  .composer{position:sticky;bottom:0;background:var(--panel);padding-top:8px}
+}

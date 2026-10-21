@@ -25,6 +25,7 @@ import shutil
 import ssl
 import subprocess
 import sys
+import threading
 import time
 import traceback
 import urllib.error
@@ -1556,6 +1557,392 @@ def task_service_usage(sb, state):
     return {"usage_checked": True, "antigravity_runs_today": runs_today}
 
 
+# --------------------------------------------------------------------------- Direktmodus
+#
+# Jan arbeitet direkt mit JARVIS statt mit einem Schwarm aus Unteragenten. Damit das
+# Board trotzdem nuetzlich bleibt, spiegelt der Daemon hier zwei Dinge:
+#   * sessions_live  — was JARVIS gerade tut (alle Kanaele: WhatsApp, Mac, Board-Chat)
+#   * chat_*         — ein Chat, den Jan vom Board aus startet; der Daemon fuehrt ihn aus
+# Dazu kommt der WhatsApp-Ping fuer neue Freigaben, damit Jan nicht im Board nachsehen muss.
+
+CHAT_TIMEOUT = 900            # Sekunden pro Board-Chat-Zug
+CHAT_MAX_PARALLEL = 2         # gleichzeitige Board-Chats
+WHATSAPP_TARGET = "whatsapp:Jan"
+BOARD_URL = "https://janbleile09-lab.github.io/jarvis-os"
+
+SOURCE_LABELS = {
+    "whatsapp": "WhatsApp",
+    "local": "Mac",
+    "cli": "Mac · Terminal",
+    "desktop": "Mac · Desktop",
+    "board": "Board-Chat",
+    "cron": "Cron",
+    "telegram": "Telegram",
+    "email": "E-Mail",
+    "signal": "Signal",
+    "oneshot": "Mac · Einmalauftrag",
+}
+
+# Nur Kanaele, in denen Jan selbst mit JARVIS redet. Cron- und Kanban-Laeufe sind
+# Hintergrundarbeit und wuerden die Sicht nur zumuellen.
+INTERACTIVE_SOURCES = {
+    "whatsapp", "local", "cli", "desktop", "board", "telegram", "email", "signal",
+    "oneshot", "slack", "discord",
+}
+
+CHAT_PROMPT_HEADER = (
+    "[Nachricht von Jan ueber das JARVIS-Board (Dashboard), nicht WhatsApp. "
+    "Antworte direkt und kompakt, ohne Einleitungsfloskel, in WhatsApp-tauglichem "
+    "Text (Absaetze, - Aufzaehlungen, *fett*, keine Tabellen). Wenn du eine "
+    "Entscheidung brauchst: staffctl ask benutzen, dann sieht Jan sie im Board "
+    "und bekommt eine WhatsApp-Nachricht.]\n\n"
+)
+
+_chat_inflight = set()
+_chat_lock = threading.Lock()
+
+
+def _iso_now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_iso(value):
+    """ISO-Zeitstempel aus Supabase in einen Unix-Zeitstempel wandeln (None bei Murks)."""
+    if not value:
+        return None
+    try:
+        text = str(value).replace("Z", "+00:00")
+        return datetime.fromisoformat(text).timestamp()
+    except Exception:
+        return None
+
+
+def default_state_db():
+    return os.path.join(HERMES_HOME, "state.db")
+
+
+def make_client():
+    """Eigener Supabase-Client fuer Hintergrund-Threads (eigene Anmeldesitzung)."""
+    secrets = load_secrets()
+    client = Supabase(
+        secrets["SUPABASE_URL"],
+        secrets["SUPABASE_ANON_KEY"],
+        secrets["STAFF_AGENT_EMAIL"],
+        secrets["STAFF_AGENT_PASSWORD"],
+        State(),
+    )
+    client.ensure_auth()
+    return client
+
+
+def live_sessions(hours=36):
+    """Alle Sitzungen der letzten Stunden inklusive letzter Aktion.
+
+    Quelle ist ~/.hermes/state.db (Default-Profil) — also genau die Sitzungen, in denen
+    Jan mit JARVIS redet, egal ueber welchen Kanal. Gelesen wird nur (query_only).
+    """
+    import sqlite3
+
+    path = default_state_db()
+    if not os.path.exists(path):
+        return []
+    cutoff = time.time() - hours * 3600
+    conn = None
+    out = []
+    try:
+        conn = sqlite3.connect("file:%s?mode=ro" % urllib.parse.quote(path), uri=True, timeout=5)
+        conn.execute("PRAGMA query_only = ON")
+        rows = conn.execute(
+            "select s.id, s.source, s.title, s.started_at, s.ended_at,"
+            " coalesce(s.message_count,0), coalesce(s.tool_call_count,0),"
+            " coalesce(s.input_tokens,0)+coalesce(s.output_tokens,0)"
+            "  +coalesce(s.cache_read_tokens,0)+coalesce(s.cache_write_tokens,0)"
+            "  +coalesce(s.reasoning_tokens,0) as tokens,"
+            " coalesce(s.actual_cost_usd, s.estimated_cost_usd, 0) as cost,"
+            " (select max(m.timestamp) from messages m where m.session_id = s.id) as last_ts"
+            " from sessions s where coalesce(s.ended_at, s.started_at) > ?"
+            " order by last_ts desc limit 60",
+            (cutoff,),
+        ).fetchall()
+        for (sid, source, title, started, ended, msgs, tools, tokens, cost, last_ts) in rows:
+            last_ts = last_ts or ended or started
+            if not last_ts or last_ts < cutoff:
+                continue
+            if (source or "") not in INTERACTIVE_SOURCES:
+                continue
+            detail = conn.execute(
+                "select role, tool_name, content, tool_calls, timestamp from messages"
+                " where session_id = ? order by timestamp desc, rowid desc limit 12",
+                (sid,),
+            ).fetchall()
+            note = note_ts = last_user = last_reply = None
+            last_role = None
+            for index, (role, tool, content, calls, stamp) in enumerate(detail):
+                text = (content or "").strip()
+                if index == 0:
+                    # Neueste Zeile entscheidet, ob JARVIS noch arbeitet oder fertig ist:
+                    # eine reine Textantwort ist das Ende eines Zuges, ein Werkzeugaufruf nicht.
+                    last_role = "assistant_tools" if (role == "assistant" and calls) else role
+                if last_user is None and role == "user" and text:
+                    last_user = " ".join(text.split())[:300]
+                if last_reply is None and role == "assistant" and text and not calls:
+                    last_reply = " ".join(text.split())[:400]
+                if note is None:
+                    if role == "assistant" and calls:
+                        hint = tool_call_hint(calls)
+                        if hint:
+                            note, note_ts = hint, stamp
+                    elif role == "tool" and tool:
+                        note, note_ts = "%s: %s" % (tool, _short_output(text)), stamp
+                    elif role == "assistant" and text:
+                        note, note_ts = " ".join(text.split())[:180], stamp
+                    elif role == "user" and text:
+                        note, note_ts = "Jan: " + " ".join(text.split())[:160], stamp
+            out.append({
+                "session_id": sid,
+                "source": source or "local",
+                "channel": SOURCE_LABELS.get(source or "", source or "Unbekannt"),
+                "title": title,
+                "started_at": started,
+                "ended_at": ended,
+                "message_count": int(msgs or 0),
+                "tool_calls": int(tools or 0),
+                "tokens": int(tokens or 0),
+                "cost_eur": float(cost or 0),
+                "last_activity": last_ts,
+                "last_role": last_role,
+                "live_note": note,
+                "live_at": note_ts,
+                "last_user_text": last_user,
+                "last_reply": last_reply,
+            })
+    except Exception as exc:
+        log("live_sessions_failed err=%s" % _short(exc, 200))
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    return out
+
+
+def task_live_sessions(sb):
+    """Spiegelt die JARVIS-Sitzungen nach staff.sessions_live (was laeuft, was wartet)."""
+    sessions = live_sessions()
+    open_approvals = []
+    try:
+        open_approvals = sb.select(
+            "approvals", "select=title&status=eq.open&order=created_at.desc&limit=1")
+    except Exception:
+        open_approvals = []
+    waiting_title = (open_approvals[0].get("title") if open_approvals else None)
+    now_ts = time.time()
+    newest = sessions[0]["session_id"] if sessions else None
+    rows = []
+    for item in sessions:
+        status = "idle"
+        last_ts = item.get("last_activity") or 0
+        age = (now_ts - last_ts) if last_ts else 10 ** 9
+        last_role = item.get("last_role")
+        # Arbeitet JARVIS noch? Letzte Zeile ist ein Werkzeugaufruf, eine Werkzeugantwort
+        # oder Jans Nachricht — dann laeuft gerade ein Zug.
+        if last_role in ("user", "tool", "assistant_tools") and age < 900 and not item.get("ended_at"):
+            status = "working"
+        elif waiting_title and item["session_id"] == newest:
+            status = "waiting_you"
+        rows.append({
+            "session_id": item["session_id"],
+            "source": item["source"],
+            "channel": item["channel"],
+            "title": item.get("title"),
+            "status": status,
+            "live_note": item.get("live_note"),
+            "live_at": iso(datetime.fromtimestamp(item["live_at"], timezone.utc)) if item.get("live_at") else None,
+            "last_user_text": item.get("last_user_text"),
+            "last_reply": item.get("last_reply"),
+            "waiting_reason": waiting_title if status == "waiting_you" else None,
+            "started_at": iso(datetime.fromtimestamp(item["started_at"], timezone.utc)) if item.get("started_at") else None,
+            "last_activity": iso(datetime.fromtimestamp(last_ts, timezone.utc)) if last_ts else None,
+            "message_count": item["message_count"],
+            "tool_calls": item["tool_calls"],
+            "tokens": item["tokens"],
+            "cost_eur": round(item["cost_eur"], 4),
+            "updated_at": _iso_now(),
+        })
+    if rows:
+        sb.insert("sessions_live", rows, on_conflict="session_id", merge=True)
+    stale = iso(datetime.now(timezone.utc) - timedelta(hours=48))
+    try:
+        sb.request("DELETE", "sessions_live?updated_at=lt." + urllib.parse.quote(stale),
+                   prefer="return=minimal")
+    except Exception as exc:
+        log("sessions_prune_failed err=%s" % _short(exc, 160))
+    return {"sessions": len(rows)}
+
+
+def task_notify_approvals(sb):
+    """Neue offene Freigabe -> einmal pro Freigabe eine WhatsApp-Nachricht an Jan."""
+    try:
+        rows = sb.select(
+            "approvals",
+            "select=id,title,question,risk,expires_at&status=eq.open"
+            "&notified_at=is.null&order=created_at.asc&limit=3")
+    except Exception as exc:
+        log("approvals_query_failed err=%s" % _short(exc, 160))
+        return {"approvals_notified": 0}
+    sent = 0
+    for item in rows:
+        lines = ["*Freigabe gebraucht*", item.get("title") or "Ohne Titel"]
+        if item.get("question"):
+            lines += ["", item["question"]]
+        extra = []
+        if item.get("risk"):
+            extra.append("Risiko: %s" % item["risk"])
+        if item.get("expires_at"):
+            extra.append("faellig %s" % str(item["expires_at"])[:16].replace("T", " "))
+        if extra:
+            lines += ["", " · ".join(extra)]
+        lines += ["", "Entscheiden: %s (Tab Approvals)" % BOARD_URL]
+        try:
+            code, out, err = run_hermes(["send", "-t", WHATSAPP_TARGET, "\n".join(lines)], timeout=120)
+        except Exception as exc:
+            code, out, err = 1, "", str(exc)
+        if code == 0:
+            try:
+                sb.update("approvals", "id=eq.%s" % item["id"], {"notified_at": _iso_now()})
+                sent += 1
+            except Exception as exc:
+                log("approval_mark_failed id=%s err=%s" % (item["id"], _short(exc, 160)))
+        else:
+            log("approval_notify_failed id=%s err=%s" % (item["id"], _short(err or out, 240)))
+    return {"approvals_notified": sent}
+
+
+def _chat_worker(thread_id, prompt, session_id):
+    """Fuehrt einen Board-Chat-Zug aus und schreibt die Antwort zurueck ins Board."""
+    try:
+        client = make_client()
+    except Exception as exc:
+        log("chat_login_failed thread=%s err=%s" % (thread_id, _short(exc, 160)))
+        with _chat_lock:
+            _chat_inflight.discard(thread_id)
+        return
+    usage_path = os.path.join(JARVIS_DIR, "chat_usage_%s.json" % str(thread_id)[:8])
+    reply, code, err_text, usage = "", 1, "", {}
+    try:
+        for attempt in (1, 2):
+            args = ["-z", prompt, "--usage-file", usage_path]
+            if session_id and attempt == 1:
+                args += ["--resume", session_id]
+            try:
+                code, out, err = run_hermes(args, timeout=CHAT_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                code, out, err = 124, "", "Zeitlimit von %d s ueberschritten" % CHAT_TIMEOUT
+            except Exception as exc:
+                code, out, err = 1, "", str(exc)
+            reply = (out or "").strip()
+            err_text = (err or "").strip()
+            if code == 0 and reply:
+                break
+            if attempt == 1 and session_id:
+                log("chat_resume_retry thread=%s err=%s" % (thread_id, _short(err_text or reply, 160)))
+                session_id = None
+                continue
+            break
+        try:
+            with open(usage_path, "r", encoding="utf-8") as fh:
+                usage = json.load(fh)
+        except Exception:
+            usage = {}
+        try:
+            os.remove(usage_path)
+        except Exception:
+            pass
+        new_session = usage.get("session_id") or session_id
+        if code == 0 and reply:
+            client.insert("chat_messages", {
+                "thread_id": thread_id, "role": "jarvis", "body": reply,
+                "tokens": usage.get("total_tokens"),
+            })
+            client.update("chat_threads", "id=eq.%s" % thread_id, {
+                "session_id": new_session, "last_role": "jarvis", "last_at": _iso_now(),
+                "updated_at": _iso_now(), "working": False, "work_started_at": None,
+                "error": None,
+            })
+            log("chat_done thread=%s chars=%s tokens=%s" % (thread_id, len(reply), usage.get("total_tokens")))
+        else:
+            reason = _short(err_text or reply or ("Exit %s" % code), 400)
+            client.insert("chat_messages", {
+                "thread_id": thread_id, "role": "system",
+                "body": "Ausfuehrung fehlgeschlagen: " + reason,
+            })
+            client.update("chat_threads", "id=eq.%s" % thread_id, {
+                "last_role": "jarvis", "updated_at": _iso_now(), "working": False,
+                "work_started_at": None, "error": reason,
+            })
+            log("chat_failed thread=%s code=%s err=%s" % (thread_id, code, reason[:200]))
+    except Exception as exc:
+        log("chat_worker_error thread=%s err=%s" % (thread_id, _short(exc, 200)))
+    finally:
+        with _chat_lock:
+            _chat_inflight.discard(thread_id)
+
+
+def task_chat(sb):
+    """Offene Board-Chats abarbeiten: letzte Nachricht von Jan -> Hermes -> Antwort zurueck."""
+    with _chat_lock:
+        inflight = set(_chat_inflight)
+    if len(inflight) >= CHAT_MAX_PARALLEL:
+        return {"chat_started": 0}
+    try:
+        rows = sb.select(
+            "chat_threads",
+            "select=id,session_id,working,work_started_at&last_role=eq.user"
+            "&status=eq.open&order=updated_at.asc&limit=4")
+    except Exception as exc:
+        log("chat_query_failed err=%s" % _short(exc, 160))
+        return {"chat_started": 0}
+    started = 0
+    now_ts = time.time()
+    for item in rows:
+        if len(inflight) + started >= CHAT_MAX_PARALLEL:
+            break
+        thread_id = item["id"]
+        if thread_id in inflight:
+            continue
+        if item.get("working"):
+            began = _parse_iso(item.get("work_started_at"))
+            if began and (now_ts - began) < (CHAT_TIMEOUT + 180):
+                continue   # laeuft wirklich noch
+            log("chat_reclaim thread=%s age=%ss" % (thread_id, int(now_ts - (began or now_ts))))
+        try:
+            msgs = sb.select(
+                "chat_messages",
+                "select=body&thread_id=eq.%s&role=eq.user&order=created_at.desc&limit=1" % thread_id)
+        except Exception:
+            continue
+        if not msgs or not (msgs[0].get("body") or "").strip():
+            continue
+        prompt = CHAT_PROMPT_HEADER + msgs[0]["body"].strip()
+        try:
+            sb.update("chat_threads", "id=eq.%s" % thread_id, {
+                "working": True, "work_started_at": _iso_now(), "error": None})
+        except Exception as exc:
+            log("chat_claim_failed thread=%s err=%s" % (thread_id, _short(exc, 160)))
+            continue
+        with _chat_lock:
+            _chat_inflight.add(thread_id)
+        threading.Thread(
+            target=_chat_worker,
+            args=(thread_id, prompt, item.get("session_id")),
+            name="chat-%s" % str(thread_id)[:8],
+            daemon=True,
+        ).start()
+        started += 1
+    return {"chat_started": started}
+
+
 # --------------------------------------------------------------------------- Lauf
 
 def load_agents(sb):
@@ -1610,6 +1997,9 @@ def run_once(sb, state, force_all=True):
     cards = (mirror or {}).get("cards", [])
 
     step("live", task_live, sb, cards)
+    step("sessions", task_live_sessions, sb)
+    step("notify", task_notify_approvals, sb)
+    step("chat", task_chat, sb)
 
     if agents:
         step("heartbeats", task_heartbeats, sb, agents, cards, rate)

@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title>JARVIS OS · Staff Board</title>
-<link rel="stylesheet" href="./styles.css?v=20261022c">
+<link rel="stylesheet" href="./styles.css?v=20261022d">
 </head>
 <body>
 
@@ -113,30 +113,27 @@
     </div>
 
     <nav class="tabs" id="tabs">
-      <button type="button" data-view="overview" class="on">Overview</button>
-      <button type="button" data-view="live">Live board</button>
+      <button type="button" data-view="jarvis" class="on">JARVIS</button>
       <button type="button" data-view="approvals">Approvals<span class="count" id="tab-approvals">0</span></button>
+      <button type="button" data-view="overview">Briefing</button>
       <button type="button" data-view="analytics">Analytics</button>
       <button type="button" data-view="readiness">Readiness</button>
       <button type="button" data-view="ops">Watchdog &amp; settings</button>
     </nav>
 
     <main>
-      <section class="view on" id="pane-overview" data-pane="overview">
-        <div id="overview-digest"></div>
-        <div id="overview-blackboard"></div>
-        <h2 class="sec"><span class="n">01</span>The company</h2>
-        <div id="overview-org"></div>
-        <h2 class="sec"><span class="n">02</span>Live cards</h2>
-        <div id="overview-cards"></div>
-      </section>
-
-      <section class="view" id="pane-live" data-pane="live">
-        <h2 class="sec"><span class="n">03</span>Live board — who is working on what</h2>
-        <p class="lead-text">Cards, history and instructions per agent. Instructions go into the
-          queue and the daemon hands them to Hermes.</p>
-        <div id="live-body"></div>
-        <div id="live-messages"></div>
+      <section class="view on" id="pane-jarvis" data-pane="jarvis">
+        <h2 class="sec"><span class="n">01</span>JARVIS — was gerade läuft</h2>
+        <div id="jarvis-now"></div>
+        <div id="jarvis-needs"></div>
+        <h2 class="sec"><span class="n">02</span>Sessions</h2>
+        <p class="lead-text">Woran JARVIS gerade arbeitet — WhatsApp, Mac oder Board-Chat.
+          Die Ansicht aktualisiert sich alle fünf Sekunden, auch vom Handy aus.</p>
+        <div id="jarvis-sessions"></div>
+        <h2 class="sec"><span class="n">03</span>Chat</h2>
+        <p class="lead-text">Direkter Chat mit JARVIS. Der Auftrag läuft auf dem Mac, die Antwort
+          erscheint hier — du kannst den Mac also verlassen.</p>
+        <div id="jarvis-chat"></div>
       </section>
 
       <section class="view" id="pane-approvals" data-pane="approvals">
@@ -144,6 +141,11 @@
         <p class="lead-text">Open decisions with cost, risk and deadline. When the deadline passes
           the stored default decision applies.</p>
         <div id="approvals-body"></div>
+      </section>
+
+      <section class="view" id="pane-overview" data-pane="overview">
+        <div id="overview-digest"></div>
+        <div id="overview-blackboard"></div>
       </section>
 
       <section class="view" id="pane-analytics" data-pane="analytics">
@@ -193,6 +195,6 @@
   </div>
 </noscript>
 
-<script type="module" src="./app.js?v=20261022c"></script>
+<script type="module" src="./app.js?v=20261022d"></script>
 </body>
 </html>

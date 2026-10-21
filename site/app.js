@@ -228,8 +228,10 @@ const state = {
   session: null,
   status: null,      // device_status
   board: null,
-  view: 'overview',
+  jarvis: null,      // jarvis_live(): Sitzungen, Chats, offene Freigaben
+  view: 'jarvis',
   pollTimer: null,
+  chatTimer: null,
   inflight: false,
   routing: false,
   renderPending: false,
@@ -239,6 +241,7 @@ const state = {
   openNote: null,      // Freigabe-ID mit ausgeklapptem Anweisungsfeld
   openCrit: null,      // Kriterien-Schlüssel mit offenem Editor
   revokedConfirm: null,
+  chat: { threadId: null, thread: null, messages: [], loading: false, error: null },
 };
 
 /* ================================================================ Gerätetoken */
@@ -329,6 +332,7 @@ function showOnly(id) {
 }
 
 function setView(view) {
+  if (!PANES[view]) view = 'jarvis';   // alte Lesezeichen (#live) landen im Direktmodus
   state.view = view;
   for (const btn of document.querySelectorAll('#tabs button')) {
     btn.classList.toggle('on', btn.dataset.view === view);
@@ -675,6 +679,10 @@ function stopPolling() {
     clearInterval(state.pollTimer);
     state.pollTimer = null;
   }
+  if (state.chatTimer) {
+    clearInterval(state.chatTimer);
+    state.chatTimer = null;
+  }
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -701,6 +709,12 @@ async function refresh(force = false) {
     }
     state.board = data;
     state.connection = { ok: true, note: 'connected' };
+    try {
+      // Live-Sicht auf die eigenen Sitzungen (Direktmodus). Fehlt sie, bleibt das
+      // Board trotzdem benutzbar — deshalb eigener try-Block.
+      const live = await rpc('jarvis_live');
+      if (live && live.ok) state.jarvis = live;
+    } catch { /* egal */ }
     await refreshPodcast();
     renderChrome();
     renderActiveView(force);
@@ -766,9 +780,9 @@ function wireTabs() {
 /* ================================================================ Zeichnen */
 
 const PANES = {
-  overview: renderOverview,
-  live: renderLive,
+  jarvis: renderJarvis,
   approvals: renderApprovals,
+  overview: renderOverview,
   analytics: renderAnalytics,
   readiness: renderReadiness,
   ops: renderOps,
@@ -948,113 +962,247 @@ function wirePodcast() {
 /* ================================================================ 01 Übersicht */
 
 function renderOverview(board) {
-  const orgBox = $('#overview-org');
-  const cardsBox = $('#overview-cards');
-  if (!orgBox || !cardsBox) return;
-
-  const agents = board ? board.agents || [] : [];
-  const tasks = board ? board.tasks || [] : [];
-
+  // Direktmodus: keine Arbeiterkarten mehr. Das Briefing bleibt, alles Operative
+  // steht im JARVIS-Tab (Sitzungen, Freigaben, Chat).
   renderBlackboard(board);
   if (!state.visitLoaded) { state.visitLoaded = true; loadVisit(); } else { renderDigest(); }
   applyBriefingLink(board);
+}
 
-  /* --- Organigramm --- */
-  clear(orgBox);
-  if (!agents.length) {
-    orgBox.append(emptyState('No data yet — the daemon has not reported any agents.'));
-  } else {
-    const coo = agents.find((a) => a.key === 'jarvis')
-      || agents.find((a) => !a.reports_to && num(a.level) >= 2)
-      || agents[0];
-    const leaders = agents.filter((a) => a !== coo && (a.reports_to === coo.key || num(a.level) > num(coo.level)));
+/* ================================================================ 01 JARVIS (Direktmodus)
+ *
+ * Kein Arbeiterschwarm mehr: hier steht, was JARVIS selbst tut (alle Kanaele), was er
+ * von Jan braucht, und ein Chat, den Jan vom Board aus startet. Der Daemon (staffd)
+ * spiegelt die Sitzungen aus ~/.hermes/state.db und fuehrt Board-Chats aus.
+ */
 
-    const org = el('div', { class: 'org' });
-    org.append(
-      el('div', { class: 'node' },
-        el('div', { class: 'av a', text: 'JB' }),
-        el('div', {},
-          el('div', { class: 'who', text: 'Jan Bleile' }),
-          el('div', { class: 'role', text: 'Owner · final authority on approvals, budget, strategy' })),
-        el('div', { class: 'meta' }, el('span', { class: 'pill' }, el('span', { class: 'dot' }), 'online'))),
-      el('div', { class: 'link' }),
-      el('div', { class: 'node coo' },
-        agentAvatar(coo),
-        el('div', {},
-          el('div', { class: 'who', text: coo.name || coo.key }),
-          el('div', { class: 'role', text: [coo.role, coo.mandate].filter(Boolean).join(' · ') || 'ohne Auftrag' })),
-        el('div', { class: 'meta' },
-          el('span', { class: 'pill', text: `${leaders.length} area${leaders.length === 1 ? '' : 's'}` }),
-          statusPill(coo))),
-    );
+const SESSION_STATUS = {
+  working:     { label: 'arbeitet',        cls: 'ok',   card: 'run' },
+  waiting_you: { label: 'wartet auf dich', cls: 'warn', card: 'wait' },
+  idle:        { label: 'bereit',          cls: 'idle', card: '' },
+  done:        { label: 'fertig',          cls: 'idle', card: '' },
+};
 
-    if (leaders.length) {
-      const team = el('div', { class: 'team' });
-      for (const lead of leaders) {
-        team.append(el('div', { class: 'lead' },
-          el('div', { class: 'top' },
-            agentAvatar(lead),
-            el('div', {},
-              el('div', { class: 'who', text: lead.name || lead.key }),
-              el('div', { class: 'role', text: lead.role || 'ohne Rolle' }))),
-          el('div', { class: 'trait', text: lead.personality ? `„${lead.personality}“` : 'No personality on file.' }),
-          el('span', { class: 'badge', text: lead.limits || lead.model || 'no limits on file' })));
-      }
-      org.append(team);
-    }
-    orgBox.append(org);
-  }
+function jarvisData() {
+  return state.jarvis || { sessions: [], chats: [], open_approvals: [], waiting_count: 0 };
+}
 
-  /* --- Live-Karten --- */
-  clear(cardsBox);
-  if (!agents.length) {
-    cardsBox.append(emptyState('No data yet.'));
+function renderJarvis() {
+  renderJarvisNow();
+  renderJarvisNeeds();
+  renderJarvisSessions();
+  renderJarvisChat();
+  ensureChatPolling();
+}
+
+/** Die aktuelle Sitzung gross: Kanal, letzter Schritt, Alter. */
+function renderJarvisNow() {
+  const box = $('#jarvis-now');
+  if (!box) return;
+  clear(box);
+  const sessions = jarvisData().sessions || [];
+  const current = sessions.find((s) => s.status === 'working')
+    || sessions.find((s) => s.status === 'waiting_you')
+    || sessions[0] || null;
+  if (!current) {
+    box.append(emptyState('Keine Sitzung in den letzten 36 Stunden. Schreib unten im Chat — dann läuft es wieder.'));
     return;
   }
-  const grid = el('div', { class: 'grid' });
-  for (const agent of agents) {
-    const mine = taskForAgent(tasks, agent.key);
-    const active = mine.find((t) => t.status === 'running')
-      || mine.find((t) => t.status === 'blocked')
-      || mine.find((t) => t.status === 'review')
-      || mine.find((t) => t.status !== 'done')
-      || null;
-    const st = AGENT_STATUS[agent.status || ''] || { label: 'kein Signal', cls: 'idle' };
-    const cardClass = st.cls === 'ok' ? 'card run' : st.cls === 'warn' ? 'card wait' : st.cls === 'bad' ? 'card err' : 'card';
+  const st = SESSION_STATUS[current.status] || SESSION_STATUS.idle;
+  const who = current.title || (current.last_user_text || '').slice(0, 70) || 'ohne Titel';
+  const card = el('div', { class: `card jv ${st.card}` },
+    el('div', { class: 'ch' },
+      el('div', { class: 'av a', text: 'JA' }),
+      el('div', {},
+        el('div', { class: 'who', text: 'JARVIS' }),
+        el('div', { class: 'role', text: `${current.channel || current.source || 'Mac'} · ${who}` })),
+      el('span', { class: `st ${st.cls}`, text: st.label })),
+    el('div', { class: 'task', text: current.live_note || current.last_reply || 'kein Schritt gemeldet' }),
+    current.waiting_reason
+      ? el('div', { class: 'live wait' }, el('span', { class: 'dot w' }),
+          el('span', { text: `wartet auf deine Freigabe: ${current.waiting_reason}` }))
+      : null,
+    el('div', { class: 'meta' },
+      el('span', {}, 'zuletzt ', el('b', { text: fmtAge(current.last_activity) })),
+      el('span', {}, el('b', { text: `${current.message_count} Nachrichten` })),
+      el('span', {}, el('b', { text: `${fmtTok(current.tokens)} tokens` })),
+      el('span', {}, el('b', { text: fmtEur(current.cost_eur) }))));
+  box.append(card);
+}
 
-    grid.append(el('div', { class: cardClass },
-      el('div', { class: 'ch' },
-        agentAvatar(agent),
-        el('div', {},
-          el('div', { class: 'who', text: agent.name || agent.key }),
-          el('div', { class: 'role', text: agent.role || 'ohne Rolle' })),
-        el('span', { class: `st ${st.cls}`, text: st.label })),
-      el('div', { class: 'task', text: active ? active.title : 'Keine offene Karte' }),
-      liveLine(active) || el('div', {
-        class: 'step',
-        text: active
-          ? [active.current_step, active.detail].filter(Boolean).join(' · ') || 'ohne Schrittangabe'
-          : (agent.mandate || 'mandate not described yet'),
-      }),
-      el('div', { class: 'bar' }, el('i', {
-        style: { width: `${Math.max(2, Math.min(100, num(active ? active.progress : 0)))}%` },
-        class: active && active.status === 'blocked' ? 'w' : null,
-      })),
-      el('div', { class: 'meta' },
-        el('span', {}, 'Heartbeat ', el('b', { text: fmtAge(agent.last_seen) })),
-        el('span', {}, 'Today ', el('b', { text: `${fmtTok(agent.tokens_today)} tokens` })),
-        el('span', {}, el('b', { text: fmtEur(agent.cost_eur_today) }))),
+/** Was JARVIS von Jan braucht — direkt hier entscheidbar. */
+function renderJarvisNeeds() {
+  const box = $('#jarvis-needs');
+  if (!box) return;
+  clear(box);
+  const open = jarvisData().open_approvals || [];
+  if (!open.length) return;
+
+  const card = el('div', { class: 'card wait' },
+    el('div', { class: 'ch' },
+      el('div', {},
+        el('div', { class: 'who', text: 'Du wirst gebraucht' }),
+        el('div', { class: 'role', text: `${open.length} offene Freigabe${open.length === 1 ? '' : 'n'}` })),
+      el('button', {
+        class: 'btn plain', type: 'button', text: 'Alle ansehen',
+        onclick: () => setView('approvals'),
+      })));
+
+  for (const ap of open.slice(0, 3)) {
+    const msg = el('p', { class: 'msg' });
+    const decide = (decision) => (ev) => guard(ev.currentTarget, async () => {
+      const res = await rpc('decide_approval', { p_id: ap.id, p_decision: decision, p_note: null });
+      if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
+      toast(decision === 'approved' ? 'Freigegeben.' : 'Abgelehnt.', 'ok');
+      await refresh(true);
+    });
+    card.append(el('div', { class: 'need' },
+      el('div', { class: 'task', text: ap.title || 'Ohne Titel' }),
+      ap.question ? el('div', { class: 'step', text: ap.question }) : null,
       el('div', { class: 'acts' },
-        el('button', {
-          class: 'btn acc', type: 'button', text: 'Instruction',
-          onclick: () => { setView('live'); setTimeout(() => focusInstruction(agent.key), 0); },
-        }),
-        el('button', {
-          class: 'btn', type: 'button', text: 'Live-Board',
-          onclick: () => setView('live'),
-        }))));
+        el('button', { class: 'btn acc', type: 'button', text: 'Freigeben', onclick: decide('approved') }),
+        el('button', { class: 'btn', type: 'button', text: 'Ablehnen', onclick: decide('denied') })),
+      msg));
   }
-  cardsBox.append(grid);
+  box.append(card);
+}
+
+/** Alle Sitzungen der letzten Stunden: WhatsApp, Mac, Board. */
+function renderJarvisSessions() {
+  const box = $('#jarvis-sessions');
+  if (!box) return;
+  clear(box);
+  const sessions = jarvisData().sessions || [];
+  if (!sessions.length) {
+    box.append(emptyState('Noch keine Sitzungen erfasst.'));
+    return;
+  }
+  const list = el('div', { class: 'grid' });
+  for (const s of sessions) {
+    const st = SESSION_STATUS[s.status] || SESSION_STATUS.idle;
+    const head = s.title || (s.last_user_text || '').slice(0, 48) || 'ohne Titel';
+    list.append(el('div', { class: `card ${st.card}` },
+      el('div', { class: 'ch' },
+        el('div', {},
+          el('div', { class: 'who', text: head }),
+          el('div', { class: 'role', text: s.channel || s.source || 'unbekannt' })),
+        el('span', { class: `st ${st.cls}`, text: st.label })),
+      el('div', { class: 'task', text: s.live_note || s.last_reply || '—' }),
+      el('div', { class: 'meta' },
+        el('span', {}, 'zuletzt ', el('b', { text: fmtAge(s.last_activity) })),
+        el('span', {}, el('b', { text: `${s.message_count} Nachrichten` })),
+        el('span', {}, el('b', { text: `${fmtTok(s.tokens)} tokens` })))));
+  }
+  box.append(list);
+}
+
+/** Chat mit JARVIS: Thread-Auswahl, Verlauf, Eingabe. */
+function renderJarvisChat() {
+  const box = $('#jarvis-chat');
+  if (!box) return;
+  clear(box);
+
+  const threads = jarvisData().chats || [];
+  const active = state.chat.threadId;
+
+  const picker = el('div', { class: 'chips' });
+  picker.append(el('button', {
+    class: `btn ${active ? '' : 'acc'}`, type: 'button', text: '+ Neuer Chat',
+    onclick: () => {
+      state.chat = { threadId: null, thread: null, messages: [], loading: false, error: null };
+      state.drafts.delete('chat');
+      renderActiveView(true);
+    },
+  }));
+  for (const t of threads) {
+    picker.append(el('button', {
+      class: `btn ${t.id === active ? 'acc' : ''}`, type: 'button',
+      text: `${t.working ? '● ' : ''}${(t.title || 'Chat').slice(0, 24)}`,
+      onclick: () => openThread(t.id),
+    }));
+  }
+  box.append(picker);
+
+  const card = el('div', { class: 'card chat' });
+  const messages = el('div', { class: 'msgs' });
+
+  if (!active) {
+    messages.append(el('p', { class: 'help', text: 'Neuer Chat: schreib unten deine erste Nachricht. JARVIS arbeitet auf dem Mac weiter, auch wenn du gehst.' }));
+  } else if (state.chat.loading && !state.chat.messages.length) {
+    messages.append(el('p', { class: 'help', text: 'lade …' }));
+  } else if (!state.chat.messages.length) {
+    messages.append(el('p', { class: 'help', text: 'Noch keine Nachrichten in diesem Chat.' }));
+  }
+  for (const m of state.chat.messages) {
+    messages.append(el('div', { class: `bubble ${m.role}` },
+      el('div', { class: 'body', text: m.body }),
+      el('div', { class: 'ago', text: fmtAge(m.created_at) })));
+  }
+  const thread = state.chat.thread;
+  if (thread && thread.working) {
+    messages.append(el('div', { class: 'bubble jarvis working' },
+      el('span', { class: 'dot live-dot' }), ' JARVIS arbeitet …'));
+  }
+  if (state.chat.error) messages.append(el('p', { class: 'msg bad', text: state.chat.error }));
+  card.append(messages);
+
+  const input = el('textarea', {
+    id: 'chat-input', rows: 2,
+    placeholder: active ? 'Antwort an JARVIS …' : 'Neuer Auftrag an JARVIS …',
+  });
+  input.value = state.drafts.get('chat') || '';
+  input.addEventListener('input', () => state.drafts.set('chat', input.value));
+  const send = el('button', { class: 'btn acc', type: 'button', text: 'Senden' });
+  send.addEventListener('click', () => sendChat(input, send));
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) sendChat(input, send);
+  });
+  card.append(el('div', { class: 'composer' }, input, send));
+  box.append(card);
+}
+
+async function sendChat(input, button) {
+  const text = (input.value || '').trim();
+  if (!text) return;
+  await guard(button, async () => {
+    const res = await rpc('chat_send', { p_thread: state.chat.threadId || null, p_text: text });
+    if (!res || !res.ok) { toast(reasonText(res), 'bad'); return; }
+    state.drafts.delete('chat');
+    input.value = '';
+    state.chat.threadId = res.thread;
+    await openThread(res.thread);
+    ensureChatPolling();
+  });
+}
+
+async function openThread(threadId) {
+  state.chat.threadId = threadId;
+  state.chat.loading = true;
+  try {
+    const data = await rpc('chat_thread', { p_thread: threadId });
+    if (!data || !data.ok) {
+      state.chat.error = data ? reasonText(data) : 'Chat nicht lesbar';
+    } else {
+      state.chat.thread = data.thread;
+      state.chat.messages = data.messages || [];
+      state.chat.error = null;
+    }
+  } catch (e) {
+    state.chat.error = e.message || 'Chat nicht lesbar';
+  }
+  state.chat.loading = false;
+  renderJarvisChat();
+}
+
+/** Solange ein Chat offen ist, alle 2,5 s nachsehen — schneller als das Board-Polling. */
+function ensureChatPolling() {
+  if (state.chatTimer) return;
+  state.chatTimer = setInterval(() => {
+    if (document.hidden || state.view !== 'jarvis' || !state.chat.threadId) return;
+    const ae = document.activeElement;
+    if (ae && ae.id === 'chat-input') return;   // nicht beim Tippen neu zeichnen
+    openThread(state.chat.threadId);
+  }, 2500);
 }
 
 function focusInstruction(agentKey) {
