@@ -17,18 +17,24 @@
   <div class="box">
     <div class="brand">JARVIS OS</div>
     <h2>Staff Board</h2>
-    <p class="help">Anmeldung ohne Passwort. Wir schicken einen Link an deine Adresse.</p>
+    <p class="help">Anmeldung mit E-Mail und Passwort. Alternativ schicken wir einen Anmelde-Link.</p>
 
     <label class="lbl" for="login-email">E-Mail</label>
     <input class="inp" id="login-email" type="email" inputmode="email" autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="name@domain.de">
 
+    <label class="lbl" for="login-pass">Passwort</label>
+    <input class="inp" id="login-pass" type="password" autocomplete="current-password"
+           placeholder="Passwort" spellcheck="false">
+
     <div class="row">
-      <button class="btn acc" type="button" id="login-send">Anmelde-Link senden</button>
+      <button class="btn acc" type="button" id="login-submit">Anmelden</button>
+      <button class="btn plain" type="button" id="login-send">Anmelde-Link senden</button>
     </div>
     <p class="msg" id="login-msg"></p>
 
-    <p class="help" style="margin-top:14px">Link in der Mail öffnen, dann hier weiter.</p>
+    <p class="help" style="margin-top:14px">Der Link in der Mail ist nur einmal gültig — iCloud
+      öffnet Links teilweise vorab, dann ist er verbraucht. Das Passwort ist der zuverlässige Weg.</p>
     <p class="foot">Zugang nur für eingetragene Mitglieder. Jedes neue Gerät muss zusätzlich
       über die Sicherheitsfrage freigeschaltet werden.</p>
   </div>

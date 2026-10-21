@@ -443,6 +443,28 @@ function wireLogin() {
 
   button.addEventListener('click', send);
   input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') send(); });
+
+  // Passwort-Anmeldung: zuverlaessiger Weg, weil iCloud Magic-Links vorab oeffnen kann
+  // und sie damit verbraucht sind.
+  const pass = $('#login-pass');
+  const submit = $('#login-submit');
+  if (submit && pass) {
+    const login = () => guard(submit, async () => {
+      const email = input.value.trim();
+      const pw = pass.value;
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || pw.length < 6) {
+        setMsg(msg, 'Bitte E-Mail und Passwort eingeben.', 'warn');
+        return;
+      }
+      setMsg(msg, '');
+      const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+      if (error) { setMsg(msg, error.message, 'bad'); return; }
+      pass.value = '';
+      await route();
+    });
+    submit.addEventListener('click', login);
+    pass.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') login(); });
+  }
 }
 
 function handleUrlError() {
