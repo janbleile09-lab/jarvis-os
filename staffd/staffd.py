@@ -1248,6 +1248,18 @@ def find_worker_session(agent_key, task_id, candidates):
         return None
 
 
+_NOTE_NOISE = (
+    "the following content was retrieved",
+    "treat it as data",
+    "untrusted",
+    "role-play prompts",
+    "tool-invocation instructions",
+    "outside this block",
+    "boundaries>",
+    "\"result\":",
+)
+
+
 def _short_output(text):
     """Erste sinnvolle Zeile einer Werkzeug-Ausgabe, ohne JSON-Gerippe.
 
@@ -1255,7 +1267,6 @@ def _short_output(text):
     das nicht — gesucht ist die erste Zeile mit echtem Inhalt.
     """
     text = (text or "").strip().replace("\\n", "\n")
-    best = ""
     for line in text.splitlines():
         line = line.strip().strip("{}[],").strip()
         if line.startswith('"output":'):
@@ -1264,9 +1275,15 @@ def _short_output(text):
         if re.match(r'^"[a-z_]+"\s*:', line):
             continue
         line = line.strip('",')
-        if len(line) > len(best) and len(line) > 3:
-            best = line
-    return (best or text)[:150]
+        # Werkzeug-Wrapper (z. B. "The following content was retrieved from an
+        # external source ...") ist kein Fortschritt und gehoert nicht in die Live-Zeile.
+        low = line.lower()
+        if any(noise in low for noise in _NOTE_NOISE):
+            continue
+        if len(line) < 4 or set(line) <= set("-*# "):
+            continue
+        return line[:150]
+    return text[:150]
 
 
 def tool_call_hint(calls):
@@ -1585,9 +1602,11 @@ SOURCE_LABELS = {
 
 # Nur Kanaele, in denen Jan selbst mit JARVIS redet. Cron- und Kanban-Laeufe sind
 # Hintergrundarbeit und wuerden die Sicht nur zumuellen.
+# "oneshot" (hermes -z) bleibt draussen: das sind Einmalaeufe und Board-Chats, die
+# schon im Chat-Tab stehen — sie wuerden die Sitzungsliste nur doppeln.
 INTERACTIVE_SOURCES = {
     "whatsapp", "local", "cli", "desktop", "board", "telegram", "email", "signal",
-    "oneshot", "slack", "discord",
+    "slack", "discord",
 }
 
 CHAT_PROMPT_HEADER = (
@@ -1659,12 +1678,14 @@ def live_sessions(hours=36):
             "  +coalesce(s.cache_read_tokens,0)+coalesce(s.cache_write_tokens,0)"
             "  +coalesce(s.reasoning_tokens,0) as tokens,"
             " coalesce(s.actual_cost_usd, s.estimated_cost_usd, 0) as cost,"
-            " (select max(m.timestamp) from messages m where m.session_id = s.id) as last_ts"
+            " (select max(m.timestamp) from messages m where m.session_id = s.id) as last_ts,"
+            " (select 1 from session_turn_leases l where l.conversation_id = s.id"
+            "   and l.expires_at > strftime('%s','now')) as leased"
             " from sessions s where coalesce(s.ended_at, s.started_at) > ?"
             " order by last_ts desc limit 60",
             (cutoff,),
         ).fetchall()
-        for (sid, source, title, started, ended, msgs, tools, tokens, cost, last_ts) in rows:
+        for (sid, source, title, started, ended, msgs, tools, tokens, cost, last_ts, leased) in rows:
             last_ts = last_ts or ended or started
             if not last_ts or last_ts < cutoff:
                 continue
@@ -1711,6 +1732,9 @@ def live_sessions(hours=36):
                 "cost_eur": float(cost or 0),
                 "last_activity": last_ts,
                 "last_role": last_role,
+                # Ein aktiver Turn-Lease ist der verlaessliche Beweis, dass gerade
+                # ein Zug laeuft — auch wenn zwischen zwei Werkzeugen Funkstille ist.
+                "leased": bool(leased),
                 "live_note": note,
                 "live_at": note_ts,
                 "last_user_text": last_user,
@@ -1745,9 +1769,12 @@ def task_live_sessions(sb):
         last_ts = item.get("last_activity") or 0
         age = (now_ts - last_ts) if last_ts else 10 ** 9
         last_role = item.get("last_role")
-        # Arbeitet JARVIS noch? Letzte Zeile ist ein Werkzeugaufruf, eine Werkzeugantwort
-        # oder Jans Nachricht — dann laeuft gerade ein Zug.
-        if last_role in ("user", "tool", "assistant_tools") and age < 900 and not item.get("ended_at"):
+        # Arbeitet JARVIS noch? Ein aktiver Lease sagt es exakt; sonst hilft die
+        # letzte Zeile: eine reine Textantwort ist das Ende eines Zuges.
+        if item.get("leased") or (
+            last_role in ("user", "tool", "assistant_tools") and age < 900
+            and not item.get("ended_at")
+        ):
             status = "working"
         elif waiting_title and item["session_id"] == newest:
             status = "waiting_you"
@@ -1775,6 +1802,10 @@ def task_live_sessions(sb):
     stale = iso(datetime.now(timezone.utc) - timedelta(hours=48))
     try:
         sb.request("DELETE", "sessions_live?updated_at=lt." + urllib.parse.quote(stale),
+                   prefer="return=minimal")
+        # Cron- und Kanban-Laeufe gehoeren nicht in Jans Sicht (Altbestand aufraeumen).
+        keep = ",".join(sorted(INTERACTIVE_SOURCES))
+        sb.request("DELETE", "sessions_live?source=not.in.(%s)" % keep,
                    prefer="return=minimal")
     except Exception as exc:
         log("sessions_prune_failed err=%s" % _short(exc, 160))

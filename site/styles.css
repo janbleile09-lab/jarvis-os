@@ -548,8 +548,19 @@ header.top .pills{margin-left:auto}
 .composer button.btn{flex:0 0 auto;padding:10px 16px}
 .live.wait{color:var(--warn)}
 
-@media (max-width:640px){
+@media (max-width:760px){
+  /* Auf dem Handy: Reiter und Chat-Auswahl seitlich scrollen statt umbrechen,
+     und unten Platz lassen, damit der Sprechknopf nichts verdeckt. */
+  nav.tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs button{flex:0 0 auto}
+  #pane-jarvis{padding-bottom:96px}
   .msgs{max-height:none}
   .bubble{max-width:94%}
-  .composer{position:sticky;bottom:0;background:var(--panel);padding-top:8px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chips button.btn{max-width:58vw}
+  .composer{flex-wrap:wrap}
+  .composer textarea{flex:1 1 100%}
+  .composer button.btn{flex:1 1 100%;padding:12px}
 }
