@@ -1,0 +1,8 @@
+# Secrets und Laufzeitdaten bleiben lokal
+secrets.env
+*.env
+.bootstrap_code
+staffd_state.json
+*.log
+__pycache__/
+.DS_Store
