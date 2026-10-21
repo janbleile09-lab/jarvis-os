@@ -1248,15 +1248,24 @@ def find_worker_session(agent_key, task_id, candidates):
 
 
 def _short_output(text):
-    """Erste sinnvolle Zeile einer Werkzeug-Ausgabe, ohne JSON-Gerippe."""
-    text = (text or "").strip()
-    for line in text.replace("\\n", "\n").splitlines():
+    """Erste sinnvolle Zeile einer Werkzeug-Ausgabe, ohne JSON-Gerippe.
+
+    Werkzeug-Ausgaben sind oft JSON ({"ok": true, "task_id": ...}). Als Live-Zeile taugt
+    das nicht — gesucht ist die erste Zeile mit echtem Inhalt.
+    """
+    text = (text or "").strip().replace("\\n", "\n")
+    best = ""
+    for line in text.splitlines():
         line = line.strip().strip("{}[],").strip()
         if line.startswith('"output":'):
             line = line.split(":", 1)[1].strip().strip('",')
-        if len(line) > 3:
-            return line[:150]
-    return text[:150]
+        # reine JSON-Schluessel-Wert-Paare ueberspringen
+        if re.match(r'^"[a-z_]+"\s*:', line):
+            continue
+        line = line.strip('",')
+        if len(line) > len(best) and len(line) > 3:
+            best = line
+    return (best or text)[:150]
 
 
 def tool_call_hint(calls):
@@ -1268,7 +1277,8 @@ def tool_call_hint(calls):
         fn = (data[0] or {}).get("function") or {}
         name = fn.get("name") or "tool"
         args = json.loads(fn.get("arguments") or "{}")
-        for key in ("command", "path", "query", "prompt", "text", "url", "pattern"):
+        for key in ("command", "cmd", "title", "body", "path", "file", "query", "prompt",
+                    "text", "message", "url", "pattern", "to"):
             if args.get(key):
                 value = " ".join(str(args[key]).split())
                 return "%s: %s" % (name, value[:150])
