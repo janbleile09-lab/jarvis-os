@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jarvis.staffd</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>python3</string>
+        <string>/Users/janbleile/jarvis-os/staffd/staffd.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/janbleile/jarvis-os/staffd</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>LowPriorityIO</key>
+    <true/>
+
+    <key>Nice</key>
+    <integer>5</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/janbleile/.jarvis-os/staffd.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/janbleile/.jarvis-os/staffd.log</string>
+
+    <!--
+      PATH muss /usr/local/bin vor /usr/bin fuehren: /usr/bin/python3 ist unter
+      macOS 3.9, der Vertrag verlangt 3.14. /usr/bin/env python3 loest darueber
+      auf /usr/local/bin/python3 (3.14) auf. Zusaetzlich liegt das Hermes-CLI im
+      PATH, damit staffd `hermes kanban ...` und `hermes cron list` aufrufen kann.
+    -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/janbleile</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/Users/janbleile/.hermes/hermes-agent/.hermes/bin:/Users/janbleile/.hermes/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+        <key>PYTHONDONTWRITEBYTECODE</key>
+        <string>1</string>
+        <key>LANG</key>
+        <string>de_DE.UTF-8</string>
+    </dict>
+</dict>
+</plist>

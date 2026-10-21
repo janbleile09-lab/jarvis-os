@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://eggrvcohkaizbcsxtywi.supabase.co; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>JARVIS OS · Staff Board</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<!-- ============================================================ Login -->
+<section class="gate" id="view-login" hidden>
+  <div class="box">
+    <div class="brand">JARVIS OS</div>
+    <h2>Staff Board</h2>
+    <p class="help">Anmeldung ohne Passwort. Wir schicken einen Link an deine Adresse.</p>
+
+    <label class="lbl" for="login-email">E-Mail</label>
+    <input class="inp" id="login-email" type="email" inputmode="email" autocomplete="email"
+           autocapitalize="off" spellcheck="false" placeholder="name@domain.de">
+
+    <div class="row">
+      <button class="btn acc" type="button" id="login-send">Anmelde-Link senden</button>
+    </div>
+    <p class="msg" id="login-msg"></p>
+
+    <p class="help" style="margin-top:14px">Link in der Mail öffnen, dann hier weiter.</p>
+    <p class="foot">Zugang nur für eingetragene Mitglieder. Jedes neue Gerät muss zusätzlich
+      über die Sicherheitsfrage freigeschaltet werden.</p>
+  </div>
+</section>
+
+<!-- ============================================================ Zugangscode (Erstübernahme) -->
+<section class="gate" id="view-claim" hidden>
+  <div class="box">
+    <div class="brand">JARVIS OS</div>
+    <h2>Zugang übernehmen</h2>
+    <p class="help">Diese Installation hat noch keinen Inhaber. Einmalig den Zugangscode eingeben —
+      danach ist dieses Konto der Inhaber.</p>
+
+    <label class="lbl" for="claim-code">Zugangscode</label>
+    <input class="inp" id="claim-code" type="text" autocomplete="off" autocapitalize="off"
+           spellcheck="false" placeholder="Code aus der Einrichtung">
+
+    <div class="row">
+      <button class="btn acc" type="button" id="claim-send">Zugang übernehmen</button>
+      <button class="btn plain" type="button" id="claim-logout">Abmelden</button>
+    </div>
+    <p class="msg" id="claim-msg"></p>
+  </div>
+</section>
+
+<!-- ============================================================ Geräteprüfung -->
+<section class="gate" id="view-device" hidden>
+  <div class="box">
+    <div class="brand">JARVIS OS</div>
+    <div id="device-body"></div>
+    <p class="msg" id="device-msg"></p>
+    <div class="row">
+      <button class="btn plain" type="button" id="device-logout">Abmelden</button>
+    </div>
+    <p class="foot">Ohne freigeschaltetes Gerät zeigt dieses Board keine Inhalte.</p>
+  </div>
+</section>
+
+<!-- ============================================================ Kein Zugang -->
+<section class="gate" id="view-denied" hidden>
+  <div class="box">
+    <div class="brand">JARVIS OS</div>
+    <h2>Kein Zugang</h2>
+    <p class="help">Dieses Konto ist nicht als Mitglied eingetragen. Der Inhaberzugang ist bereits
+      vergeben.</p>
+    <div class="row">
+      <button class="btn" type="button" id="denied-logout">Abmelden</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Board -->
+<div id="shell" hidden>
+  <div class="wrap">
+
+    <header class="top">
+      <h1>JARVIS OS <span>· Staff Board</span></h1>
+      <div class="pills" id="pills"></div>
+    </header>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" data-view="overview" class="on">Übersicht</button>
+      <button type="button" data-view="live">Live-Board</button>
+      <button type="button" data-view="approvals">Freigaben<span class="count" id="tab-approvals">0</span></button>
+      <button type="button" data-view="analytics">Analytik</button>
+      <button type="button" data-view="readiness">Marktreife</button>
+      <button type="button" data-view="ops">Watchdog &amp; Einstellungen</button>
+    </nav>
+
+    <main>
+      <section class="view on" id="pane-overview" data-pane="overview">
+        <h2 class="sec"><span class="n">01</span>Die Firma</h2>
+        <div id="overview-org"></div>
+        <h2 class="sec"><span class="n">02</span>Live-Karten</h2>
+        <div id="overview-cards"></div>
+      </section>
+
+      <section class="view" id="pane-live" data-pane="live">
+        <h2 class="sec"><span class="n">03</span>Live-Board — wer arbeitet woran</h2>
+        <p class="lead-text">Karten, Verlauf und Anweisungen je Agent. Anweisungen landen in der
+          Warteschlange und werden vom Daemon an Hermes übergeben.</p>
+        <div id="live-body"></div>
+      </section>
+
+      <section class="view" id="pane-approvals" data-pane="approvals">
+        <h2 class="sec"><span class="n">04</span>Freigabe-Inbox</h2>
+        <p class="lead-text">Offene Entscheidungen mit Kosten, Risiko und Frist. Nach Ablauf der Frist
+          greift die hinterlegte Standard-Entscheidung.</p>
+        <div id="approvals-body"></div>
+      </section>
+
+      <section class="view" id="pane-analytics" data-pane="analytics">
+        <h2 class="sec"><span class="n">05</span>Analytik</h2>
+        <div id="analytics-body"></div>
+      </section>
+
+      <section class="view" id="pane-readiness" data-pane="readiness">
+        <h2 class="sec"><span class="n">06</span>Marktreife</h2>
+        <div id="readiness-body"></div>
+      </section>
+
+      <section class="view" id="pane-ops" data-pane="ops">
+        <h2 class="sec"><span class="n">07</span>Watchdog</h2>
+        <div id="ops-watchdog"></div>
+        <h2 class="sec"><span class="n">08</span>Vorfälle</h2>
+        <div id="ops-incidents"></div>
+        <h2 class="sec"><span class="n">09</span>Geräte</h2>
+        <div id="ops-devices"></div>
+        <h2 class="sec"><span class="n">10</span>Sicherheitsfrage</h2>
+        <div id="ops-question"></div>
+        <h2 class="sec"><span class="n">11</span>Budgets &amp; Nacht-Policy</h2>
+        <div id="ops-settings"></div>
+        <h2 class="sec"><span class="n">12</span>Sitzung</h2>
+        <div id="ops-session"></div>
+      </section>
+    </main>
+
+    <footer class="foot" id="foot">
+      JARVIS OS · Staff Board v2 — Daten ausschließlich über die RPCs des Schemas <span class="mono">staff</span>.
+      Aktualisierung alle 5 Sekunden, pausiert bei inaktivem Tab.
+    </footer>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<noscript>
+  <div class="gate">
+    <div class="box">
+      <div class="brand">JARVIS OS</div>
+      <h2>JavaScript erforderlich</h2>
+      <p class="help">Dieses Board lädt seine Daten über eine gesicherte Verbindung im Browser.
+        Bitte JavaScript für diese Seite erlauben.</p>
+    </div>
+  </div>
+</noscript>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
