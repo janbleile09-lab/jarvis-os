@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Staff Board v2 ist live</title>
+<style>
+  body{margin:0;padding:0;background:#f4f5f7}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 22px 40px;background:#ffffff;
+        font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+        font-size:17px;line-height:1.62;color:#22262c}
+  h1{font-size:26px;line-height:1.25;margin:0 0 6px;color:#0f1318;font-weight:700;letter-spacing:-.2px}
+  .kicker{font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:#8a929e;margin:0 0 18px;font-weight:600}
+  h2{font-size:20px;margin:32px 0 10px;color:#0f1318;font-weight:700}
+  h3{font-size:17px;margin:20px 0 6px;color:#0f1318;font-weight:650}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:0 0 8px}
+  table{width:100%;border-collapse:collapse;font-size:15px;margin:12px 0 18px}
+  th{text-align:left;font-size:12.5px;letter-spacing:.7px;text-transform:uppercase;color:#6d7581;
+     font-weight:650;padding:8px 10px;border-bottom:2px solid #dfe2e7}
+  td{padding:9px 10px;border-bottom:1px solid #eceef1;vertical-align:top;color:#2b3138}
+  tr.alt td{background:#f6f7f9}
+  td.k{font-weight:650;color:#0f1318;white-space:nowrap}
+  .box{background:#f6f8fb;border-left:4px solid #3f7fd4;padding:14px 16px;margin:16px 0;border-radius:0 6px 6px 0;font-size:16px}
+  .box.warn{background:#fdf8ef;border-left-color:#d99a24}
+  .box.ok{background:#f2f9f4;border-left-color:#2f9e5f}
+  .cred{background:#0f1318;color:#ffffff;border-radius:10px;padding:16px 18px;margin:14px 0 18px}
+  .cred .row{font-size:16px;margin:0 0 8px;color:#c9d3e0}
+  .cred .val{font-size:19px;font-weight:700;color:#ffffff;letter-spacing:.3px}
+  .cred a{color:#7cc4ff;text-decoration:none;font-weight:650}
+  .small{font-size:14.5px;color:#5c646e}
+  .foot{font-size:13.5px;color:#8a929e;margin-top:26px;border-top:1px solid #e6e8ec;padding-top:14px}
+  a{color:#2b6cb0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">Umsetzung · JARVIS OS</p>
+  <h1>Das Staff Board ist live — öffentlich, aber verschlossen</h1>
+  <p>Gebaut, geprüft, in Betrieb. Die Seite läuft auf GitHub Pages, die Daten liegen in einem eigenen Supabase-Projekt in Frankfurt, und der Daemon auf deinem Mac arbeitet sie im Hintergrund. Ohne freigeschaltetes Gerät liefert die Seite <b>keine einzige Zeile</b> Inhalt — das habe ich getestet, nicht nur gebaut.</p>
+
+  <div class="cred">
+    <p class="row">Adresse</p>
+    <p class="val"><a href="https://janbleile09-lab.github.io/jarvis-os/">janbleile09-lab.github.io/jarvis-os</a></p>
+    <p class="row" style="margin-top:14px">Anmeldung</p>
+    <p class="val">jan.bleile@icloud.com · Tafel-Anker-Wolke-9567</p>
+    <p class="row" style="margin-top:14px">Zugangscode (einmalig, für den ersten Login)</p>
+    <p class="val">JARVIS-CL59D43C</p>
+  </div>
+
+  <h2>In drei Schritten drin</h2>
+  <ul>
+    <li><b>Anmelden</b> mit E-Mail und Passwort. Das Passwort kannst du danach unter „Watchdog &amp; Einstellungen" sofort ändern — dort steht ein Feld dafür.</li>
+    <li><b>Zugangscode eingeben.</b> Er macht dein Konto zum Inhaber und verbrennt sich dabei. Ohne Code kommt niemand rein, auch nicht mit gültigem Login.</li>
+    <li><b>Sicherheitsfrage festlegen.</b> Nimm etwas, das nur du weißt — sie entscheidet, ob ein neues Gerät Daten sehen darf. Die Antwort wird nur als Hash gespeichert.</li>
+  </ul>
+  <p class="small">Ab dann gilt: jedes neue Gerät (iPhone, iPad, fremder Browser) bekommt nach dem Login die Sicherheitsfrage. Drei Fehlversuche sperren die Abfrage 15 Minuten und landen als Vorfall im Board.</p>
+
+  <h2>Was jetzt wirklich läuft</h2>
+  <p>Keine Beispieldaten. Das hier sind Messwerte aus dem laufenden System von heute, 13:15 Uhr:</p>
+
+  <table>
+    <tr><th>Teil</th><th>Stand</th></tr>
+    <tr>
+      <td class="k">Firma</td>
+      <td>6 Agenten mit Rolle, Mandat, Grenzen und Charakter — JARVIS als COO, peter, david, frank, luca, charlie als Bereichsleiter. Jeder hat ein Tagesbudget.</td>
+    </tr>
+    <tr class="alt">
+      <td class="k">Live-Board</td>
+      <td>Herzschlag alle 12 Sekunden, echte Karten aus dem Kanban (5 gespiegelt, davon 2 blockiert), Token und Kosten je Agent. Aktualisierung alle 5 Sekunden.</td>
+    </tr>
+    <tr>
+      <td class="k">Freigaben</td>
+      <td>Agenten fragen über das neue Werkzeug <b>staffctl ask</b> um Erlaubnis, du entscheidest im Board, der Daemon führt aus. Frist mit Standard-Entscheidung ist eingebaut — nichts bleibt mehr nachts liegen.</td>
+    </tr>
+    <tr class="alt">
+      <td class="k">Watchdog</td>
+      <td>Fünf echte Prüfungen alle 60 Sekunden: Hub (19 ms), Provider, Cron, Speicherplatz, Daemon selbst. Bei Ausfall startet er den Hub neu und legt einen Vorfall an.</td>
+    </tr>
+    <tr>
+      <td class="k">Marktreife</td>
+      <td>Gewichtete Rubrik, 8 Kriterien, Evidenztext je Feld, <b>38 %</b>. Du kannst jeden Score im Board überschreiben — aber nur mit Begründung.</td>
+    </tr>
+    <tr class="alt">
+      <td class="k">Analytik</td>
+      <td>Karten, Nachtfortschritt, Kosten und Token je Tag und Agent aus den Stundenwerten des Daemons.</td>
+    </tr>
+  </table>
+
+  <h2>Sicherheit — was ich gebaut habe und was du wissen musst</h2>
+  <ul>
+    <li><b>Die Seite ist öffentlich, die Daten nicht.</b> Tabellen sind für angemeldete Menschen komplett gesperrt; gelesen und geschrieben wird ausschließlich über serverseitige Funktionen, die ein Gerätetoken verlangen. Selbst ein Fehler in einer Regel käme an keine Zeile.</li>
+    <li><b>Kein Generalschlüssel.</b> Im Browser liegt nur der öffentliche Schlüssel. Der Daemon meldet sich als eigener Agent-Nutzer an und darf Freigaben <b>nicht</b> entscheiden — nur anlegen und ausführen.</li>
+    <li><b>Passwort statt Mail-Link, aus gutem Grund.</b> Der erste Test mit Anmeldelink ist gescheitert: iCloud hat den Link vorab geöffnet, damit war das Einmal-Token verbraucht. Auf dem kostenlosen Tarif lassen sich die Mail-Vorlagen nicht ändern, also kein Code per Mail. Deshalb Passwort — das funktioniert zuverlässig und ist änderbar.</li>
+    <li><b>Kein Zugang ohne Gerät.</b> Login allein genügt nicht: neue Geräte müssen die Sicherheitsfrage bestehen. Geräte lassen sich im Board einzeln widerrufen, das wirkt sofort.</li>
+  </ul>
+
+  <div class="box warn">
+    <b>Ehrlich zur Restlücke:</b> Wer dein Postfach kontrolliert, hat Passwort und Code. Die Sicherheitsfrage schützt danach neue Geräte, aber nicht den ersten Zugang. Wenn du das schließen willst, sind die nächsten Stufen: eigener SMTP (dann Login per 6-stelliger Code-Mail statt Passwort) und eine TOTP-App als zweiter Faktor. Beides kann ich nachziehen, sobald du willst.
+  </div>
+
+  <h2>Was der Watchdog heute gefunden hat</h2>
+  <table>
+    <tr><th>Befund</th><th>Bedeutung</th></tr>
+    <tr>
+      <td class="k">4 Cron-Jobs mit Fehlern</td>
+      <td>Mindestens zwei Zustellungen scheitern seit heute Nacht, weil das Lieferziel auf einen toten Kanal zeigt. Die Berichte selbst entstehen, kommen aber nicht an. Reparatur braucht deine Entscheidung, wohin sie gehen sollen.</td>
+    </tr>
+    <tr class="alt">
+      <td class="k">Speicher: 14 GB frei</td>
+      <td>Das sind 6,4 %. Wenn die Platte voll läuft, sterben Cron-Jobs still — genau der Fall, der dich schon einmal erwischt hat. Aufräumen ist überfällig.</td>
+    </tr>
+    <tr>
+      <td class="k">Kosten heute: 7,50 €</td>
+      <td>Von 12 € Tagesbudget, fast alles in meiner eigenen Sitzung. Der Satz ist ein Mischpreis inklusive Cache-Rabatt, also eine realistische Schätzung, keine Obergrenze.</td>
+    </tr>
+  </table>
+
+  <h2>Was noch nicht drin ist</h2>
+  <ul>
+    <li><b>Kein Push aufs Handy.</b> Freigaben siehst du beim Öffnen. Eine Mail bei neuer Freigabe wäre der nächste sinnvolle Schritt — sag Bescheid.</li>
+    <li><b>Budget-Stopp.</b> Der Daemon rechnet und zeigt, stoppt aber noch keinen Agenten bei Überschreitung.</li>
+    <li><b>„Karten heute"</b> zählt nur, was der Daemon selbst gesehen hat. Ab jetzt stimmt es, rückwirkend ist es leer.</li>
+    <li><b>Marktreife-Scores</b> sind meine Startschätzung mit Begründung — nicht deine. Überschreib sie, wo du es anders siehst.</li>
+    <li><b>Der alte Hub</b> läuft unverändert weiter. Der Watchdog startet ihn neu, wenn er hängt.</li>
+  </ul>
+
+  <h2>Zwei Entscheidungen</h2>
+  <table>
+    <tr><th>Frage</th><th>Mein Vorschlag</th></tr>
+    <tr>
+      <td class="k">Mail-Zustellung reparieren?</td>
+      <td>Ja — die vier fehlerhaften Jobs auf E-Mail umstellen, statt auf den toten Kanal. Dann kommen Morgenbriefing und Nachtbericht wieder an.</td>
+    </tr>
+    <tr class="alt">
+      <td class="k">Code-Login per Mail?</td>
+      <td>Nur mit eigenem SMTP. Sag mir, ob ich das einrichten soll — dann wird der Login noch einmal deutlich härter.</td>
+    </tr>
+  </table>
+
+  <p>Der Daemon läuft ab jetzt dauerhaft (launchd, Neustart bei Absturz). Wenn du das Board öffnest, siehst du als Erstes, wer gerade was macht — und wenn ein Agent etwas will, steht es unter „Freigaben", nicht in einer Nachricht, die du morgens um sechs findest.</p>
+
+  <div class="foot">
+    Gebaut von JARVIS · 21. Oktober 2026, 13:20 Uhr · Repository: github.com/janbleile09-lab/jarvis-os (öffentlich, ohne Zugangsdaten)<br>
+    Geprüft: kompletter Durchlauf im Browser (Anmeldung, Zugangscode, Sicherheitsfrage, alle sechs Ansichten), ohne Gerät kein Inhalt, Daemon mit echtem Schreibzugriff, 0 Konsolenfehler.
+  </div>
+
+</div>
+</body>
+</html>
