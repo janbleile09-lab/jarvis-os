@@ -551,9 +551,8 @@ header.top .pills{margin-left:auto}
 @media (max-width:760px){
   /* Auf dem Handy: Reiter und Chat-Auswahl seitlich scrollen statt umbrechen,
      und unten Platz lassen, damit der Sprechknopf nichts verdeckt. */
-  nav.tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
-  nav.tabs::-webkit-scrollbar{display:none}
-  nav.tabs button{flex:0 0 auto}
+  nav.tabs{gap:4px;margin-bottom:14px}
+  nav.tabs button{font-size:12px;padding:6px 9px}
   #pane-jarvis{padding-bottom:96px}
   .msgs{max-height:none}
   .bubble{max-width:94%}
@@ -562,5 +561,6 @@ header.top .pills{margin-left:auto}
   .chips button.btn{max-width:58vw}
   .composer{flex-wrap:wrap}
   .composer textarea{flex:1 1 100%}
-  .composer button.btn{flex:1 1 100%;padding:12px}
+  /* Sprechknopf sitzt unten rechts — Senden endet davor, damit er nicht im Weg ist. */
+  .composer button.btn{flex:0 0 calc(100% - 78px);padding:12px}
 }
