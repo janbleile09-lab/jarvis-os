@@ -429,8 +429,26 @@ def kanban_list(board=KANBAN_BOARD):
     return data
 
 
+# Hermes-Profilnamen weichen von den Board-Schluesseln ab: der Agent heisst im Board
+# "jarvis", das ausfuehrende Profil ist aber "default". Ohne diese Zuordnung landet die
+# Karte bei einem Profil, das es nicht gibt — der Dispatcher ueberspringt sie dann als
+# "nonspawnable" und es passiert schlicht nichts.
+PROFILE_MAP = {"jarvis": "default"}
+
+
+def board_key(assignee):
+    """Profilname -> Board-Schluessel ("default" -> "jarvis"). None bleibt None."""
+    if not assignee:
+        return None
+    for agent_key, profile in PROFILE_MAP.items():
+        if profile == assignee:
+            return agent_key
+    return assignee
+
+
 def kanban_create(board, title, body, assignee):
     """Legt eine Karte an und gibt ihre ID zurueck."""
+    assignee = PROFILE_MAP.get(assignee, assignee)
     # Achtung: der Titel ist ein POSITIONAL argument, kein --title-Flag.
     args = ["kanban", "--board", board, "create", title[:200], "--json"]
     if body:
@@ -752,6 +770,10 @@ def task_mirror_kanban(sb, known_agents):
             continue
         mapped = STATUS_MAP.get(str(card.get("status") or "").lower(), "todo")
         assignee = card.get("assignee")
+        # Rueckweg der Zuordnung: das Profil "default" ist im Board der Agent "jarvis".
+        # Ohne diesen Schritt bleibt agent_key NULL und das Board zeigt den Agenten als untätig,
+        # obwohl ein Worker an seiner Karte arbeitet.
+        assignee = {v: k for k, v in PROFILE_MAP.items()}.get(assignee, assignee)
         agent_key = assignee if assignee in known_agents else None
         fields = {
             "agent_key": agent_key,
@@ -810,7 +832,7 @@ def task_heartbeats(sb, agents, cards, rate):
     cards_by_agent = {}
     for card in cards:
         mapped = STATUS_MAP.get(str(card.get("status") or "").lower(), "todo")
-        cards_by_agent.setdefault(card.get("assignee"), []).append(mapped)
+        cards_by_agent.setdefault(board_key(card.get("assignee")), []).append(mapped)
 
     rows = []
     missing = []
@@ -1129,9 +1151,74 @@ def task_backfill_metrics(sb, state):
     return {"backfilled": True, "metrics_backfilled_rows": written}
 
 
+
+PODCAST_JOB = os.path.expanduser("~/jarvis-os/podcast/podcast_job.py")
+PODCAST_LOG = os.path.expanduser("~/.jarvis-os/podcast.log")
+
+
+def task_podcast(sb, state):
+    """Startet den Podcast-Arbeiter fuer den aeltesten offenen Auftrag.
+
+    Der Arbeiter laeuft abgekoppelt (eigene Sitzung), weil eine Folge drei bis fuenf Minuten
+    braucht — der Daemon darf so lange nicht blockieren. Vor dem Start wird der Auftrag sofort
+    auf "running" gesetzt, damit zwei Laeufe nicht denselben Auftrag doppelt starten.
+    """
+    running = sb.select("podcast_jobs", "select=id&status=eq.running") or []
+    if running:
+        return {"podcast_started": 0}
+    jobs = sb.select("podcast_jobs", "select=id&status=eq.queued&order=created_at&limit=1") or []
+    if not jobs:
+        return {"podcast_started": 0}
+    job_id = jobs[0]["id"]
+    sb.update("podcast_jobs", "id=eq." + str(job_id),
+              {"status": "running", "stage": "starting", "progress": 8,
+               "started_at": iso(datetime.now(timezone.utc))})
+    try:
+        os.makedirs(os.path.dirname(PODCAST_LOG), exist_ok=True)
+        with open(PODCAST_LOG, "ab") as logfile:
+            subprocess.Popen([sys.executable, PODCAST_JOB, str(job_id)],
+                             stdout=logfile, stderr=subprocess.STDOUT,
+                             start_new_session=True, cwd=os.path.expanduser("~"))
+        log("podcast_started id=%s" % job_id)
+        return {"podcast_started": 1}
+    except Exception as exc:
+        sb.update("podcast_jobs", "id=eq." + str(job_id),
+                  {"status": "failed", "stage": "failed", "error": _short(exc, 300)})
+        log("podcast_spawn_failed err=%s" % _short(exc, 200))
+        return {"podcast_started": 0, "podcast_error": _short(exc, 120)}
+
+
 # --------------------------------------------------------------------------- Aufgabe 9
 
 VOICE_TMP = os.path.expanduser("~/.jarvis-os/tmp")
+
+
+
+def ffmpeg_bin():
+    """ffmpeg finden: PATH, dann die Hermes-Tools. WebM/Opus kann Apple Audio nicht oeffnen."""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    tools = os.path.expanduser("~/.hermes/tools")
+    if os.path.isdir(tools):
+        for name in sorted(os.listdir(tools), reverse=True):
+            if name.startswith("ffmpeg"):
+                candidate = os.path.join(tools, name, "ffmpeg")
+                if os.path.exists(candidate):
+                    return candidate
+    return None
+
+
+def to_wav(src, dst):
+    """Beliebige Aufnahme nach 16 kHz mono WAV wandeln. Gibt True bei Erfolg."""
+    binary = ffmpeg_bin()
+    if not binary:
+        return False
+    proc = subprocess.run(
+        [binary, "-y", "-loglevel", "error", "-i", src, "-ar", "16000", "-ac", "1", dst],
+        capture_output=True, text=True, timeout=180,
+    )
+    return proc.returncode == 0 and os.path.exists(dst) and os.path.getsize(dst) > 1000
 
 
 def task_voice(sb):
@@ -1168,7 +1255,16 @@ def task_voice(sb):
                 fh.write(raw)
             if not os.path.exists(stt):
                 raise RuntimeError("apple_stt fehlt: %s" % stt)
-            proc = subprocess.run([stt, path, "de-DE"], capture_output=True, text=True, timeout=240)
+            # Apple Audio kann WebM/Opus nicht oeffnen (ExtAudioFileOpenURL schlaegt fehl).
+            # Deshalb immer zuerst nach 16 kHz mono WAV wandeln.
+            target = path
+            if suffix != ".wav":
+                wav = os.path.join(VOICE_TMP, "voice_%s.wav" % vid)
+                if to_wav(path, wav):
+                    target = wav
+                else:
+                    log("voice_convert_failed id=%s mime=%s" % (vid, mime))
+            proc = subprocess.run([stt, target, "de-DE"], capture_output=True, text=True, timeout=240)
             text = (proc.stdout or "").strip()
             if proc.returncode != 0 or not text:
                 raise RuntimeError((proc.stderr or "kein Transkript")[:200])
@@ -1188,11 +1284,12 @@ def task_voice(sb):
             except Exception:
                 pass
         finally:
-            if path and os.path.exists(path):
-                try:
-                    os.unlink(path)
-                except Exception:
-                    pass
+            for leftover in {path, os.path.join(VOICE_TMP, "voice_%s.wav" % vid)}:
+                if leftover and os.path.exists(leftover):
+                    try:
+                        os.unlink(leftover)
+                    except Exception:
+                        pass
     return {"voice_done": done, "voice_failed": failed}
 
 
@@ -1308,6 +1405,7 @@ def run_once(sb, state, force_all=True):
 
     step("expire_approvals", task_expire_approvals, sb)
     step("backfill", task_backfill_metrics, sb, state)
+    step("podcast", task_podcast, sb, state)
     step("voice", task_voice, sb)
     step("messages", task_messages, sb)
     step("usage", task_service_usage, sb, state)

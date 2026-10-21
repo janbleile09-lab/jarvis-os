@@ -78,13 +78,13 @@ function svg(tag, attrs) {
 
 /* ---------------------------------------------------------------- Zahlen & Zeit */
 
-const nfInt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
-const nfEur = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nfInt = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
+const nfEur = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const fmtTime = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
-const fmtTimeSec = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ });
-const fmtDay = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', timeZone: TZ });
-const fmtStamp = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TZ });
+const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+const fmtTimeSec = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ });
+const fmtDay = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', timeZone: TZ });
+const fmtStamp = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: TZ });
 const berlinDay = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: TZ });
 const berlinHour = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: TZ });
 
@@ -101,8 +101,8 @@ function fmtInt(n) {
 
 function fmtTok(n) {
   const v = num(n);
-  if (v >= 1e6) return `${(v / 1e6).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Mio`;
-  if (v >= 1e3) return `${(v / 1e3).toLocaleString('de-DE', { maximumFractionDigits: 0 })}k`;
+  if (v >= 1e6) return `${(v / 1e6).toLocaleString('en-GB', { maximumFractionDigits: 1 })}M`;
+  if (v >= 1e3) return `${(v / 1e3).toLocaleString('en-GB', { maximumFractionDigits: 0 })}k`;
   return fmtInt(v);
 }
 
@@ -120,7 +120,7 @@ function fmtAge(iso) {
   if (m < 60) return `${m} min`;
   const h = Math.round(m / 60);
   if (h < 36) return `${h} h`;
-  return `${Math.round(h / 24)} Tage`;
+  return `${Math.round(h / 24)} days`;
 }
 
 function fmtWhen(iso) {
@@ -131,7 +131,7 @@ function fmtWhen(iso) {
 /** Restzeit bis Frist: „in 5 h 48 min", „abgelaufen". */
 function fmtUntil(iso) {
   const d = dateOf(iso);
-  if (!d) return 'keine Frist';
+  if (!d) return 'no deadline';
   const ms = d.getTime() - Date.now();
   if (ms <= 0) return 'abgelaufen';
   const min = Math.round(ms / 60000);
@@ -144,64 +144,64 @@ function fmtUntil(iso) {
 
 function pct(n) {
   const v = Math.max(0, Math.min(100, num(n)));
-  return `${v.toLocaleString('de-DE', { maximumFractionDigits: 0 })} %`;
+  return `${v.toLocaleString('en-GB', { maximumFractionDigits: 0 })} %`;
 }
 
 /* ---------------------------------------------------------------- Vokabular */
 
 const AGENT_STATUS = {
-  running: { label: 'arbeitet', cls: 'ok', dot: '' },
+  running: { label: 'working', cls: 'ok', dot: '' },
   waiting: { label: 'wartet', cls: 'warn', dot: 'w' },
   error: { label: 'Fehler', cls: 'bad', dot: 'b' },
   idle: { label: 'bereit', cls: 'idle', dot: 'n' },
 };
 
 const TASK_STATUS = {
-  todo: 'offen', scheduled: 'geplant', running: 'läuft',
-  blocked: 'blockiert', review: 'Review', done: 'fertig',
+  todo: 'open', scheduled: 'scheduled', running: 'running',
+  blocked: 'blocked', review: 'review', done: 'done',
 };
 
 const APPROVAL_KIND = {
   subagents: 'Subagents', deploy: 'Deploy', purchase: 'Kauf',
-  delete: 'Löschen', external: 'extern sichtbar', other: 'sonstiges',
+  delete: 'Delete', external: 'externally visible', other: 'other',
 };
 
 const APPROVAL_STATUS = {
-  open: 'offen', approved: 'genehmigt', denied: 'abgelehnt',
-  expired: 'abgelaufen', withdrawn: 'zurückgezogen',
+  open: 'open', approved: 'approved', denied: 'denied',
+  expired: 'expired', withdrawn: 'withdrawn',
 };
 
 const RISK = { low: 'niedrig', medium: 'mittel', high: 'hoch' };
 
 const REASONS = {
-  device_not_trusted: 'Dieses Gerät ist nicht freigeschaltet.',
-  not_trusted: 'Dieses Gerät ist nicht freigeschaltet.',
-  no_session: 'Sitzung abgelaufen. Bitte neu anmelden.',
-  not_owner: 'Nur der Inhaber darf diesen Schritt ausführen.',
-  already_claimed: 'Der Inhaberzugang ist bereits vergeben.',
-  code_invalid: 'Zugangscode ungültig.',
+  device_not_trusted: 'This device is not approved.',
+  not_trusted: 'This device is not approved.',
+  no_session: 'Session expired. Please sign in again.',
+  not_owner: 'Only the owner may perform this step.',
+  already_claimed: 'Ownership is already assigned.',
+  code_invalid: 'Invalid access code.',
   too_short: 'Eingabe zu kurz.',
-  weak_token: 'Gerätetoken zu schwach — Seite neu laden.',
-  device_unknown: 'Gerät unbekannt. Bitte neu anmelden.',
-  no_question: 'Es ist noch keine Sicherheitsfrage gesetzt.',
-  wrong: 'Antwort falsch.',
-  locked: 'Gesperrt. Bitte später erneut versuchen.',
-  bad_decision: 'Ungültige Entscheidung.',
-  bad_score: 'Score muss zwischen 0 und 5 liegen.',
-  unknown_key: 'Unbekannter Schlüssel.',
-  unknown_agent: 'Unbekannter Agent.',
-  not_found: 'Eintrag nicht gefunden.',
+  weak_token: 'Device token too weak — reload the page.',
+  device_unknown: 'Unknown device. Please sign in again.',
+  no_question: 'No security question set yet.',
+  wrong: 'Wrong answer.',
+  locked: 'Locked. Please try again later.',
+  bad_decision: 'Invalid decision.',
+  bad_score: 'Score must be between 0 and 5.',
+  unknown_key: 'Unknown key.',
+  unknown_agent: 'Unknown agent.',
+  not_found: 'Entry not found.',
   already_decided: 'Bereits entschieden.',
-  not_agent: 'Nur der Daemon darf das.',
+  not_agent: 'Only the daemon may do that.',
 };
 
 function reasonText(res) {
-  if (!res) return 'Keine Antwort vom Server.';
-  const base = REASONS[res.reason] || `Abgelehnt (${res.reason || 'unbekannt'}).`;
+  if (!res) return 'No response from the server.';
+  const base = REASONS[res.reason] || `Abgelehnt (${res.reason || 'unknown'}).`;
   if (res.reason === 'locked' && res.until) return `Gesperrt bis ${fmtTime.format(dateOf(res.until) || new Date())}.`;
   if (res.reason === 'wrong' && typeof res.attempts_left === 'number') {
     const n = res.attempts_left;
-    return `Antwort falsch. Noch ${n} ${n === 1 ? 'Versuch' : 'Versuche'}.`;
+    return `Wrong answer. ${n} ${n === 1 ? 'attempt' : 'attempts'} left.`;
   }
   return base;
 }
@@ -233,7 +233,7 @@ const state = {
   inflight: false,
   routing: false,
   renderPending: false,
-  connection: { ok: false, note: 'nicht verbunden' },
+  connection: { ok: false, note: 'not connected' },
   pendingDevice: null, // { id, question }
   drafts: new Map(),   // Eingaben, die ein Re-Render überleben müssen
   openNote: null,      // Freigabe-ID mit ausgeklapptem Anweisungsfeld
@@ -304,11 +304,11 @@ function setMsg(node, text, kind = '') {
 /** Button gegen Doppelklick sperren, Fehler auffangen. */
 async function guard(button, fn) {
   const label = button ? button.textContent : '';
-  if (button) { button.disabled = true; button.textContent = 'läuft …'; }
+  if (button) { button.disabled = true; button.textContent = 'working …'; }
   try {
     await fn();
   } catch (e) {
-    toast(e.message || 'Aktion fehlgeschlagen', 'bad');
+    toast(e.message || 'Action failed', 'bad');
   } finally {
     if (button && button.isConnected) { button.disabled = false; button.textContent = label; }
   }
@@ -347,6 +347,7 @@ async function boot() {
   wireGateChrome();
   wireTabs();
   wireVoice();
+  wirePodcast();
   handleUrlError();
 
   sb.auth.onAuthStateChange((event) => {
@@ -388,7 +389,7 @@ async function routeOnce() {
   try {
     st = await rpc('device_status');
   } catch (e) {
-    toast(`Statusabfrage fehlgeschlagen: ${e.message}`, 'bad');
+    toast(`Status check failed: ${e.message}`, 'bad');
     showOnly('view-login');
     return;
   }
@@ -430,7 +431,7 @@ function wireLogin() {
   const send = () => guard(button, async () => {
     const email = input.value.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      setMsg(msg, 'Bitte eine gültige E-Mail-Adresse eingeben.', 'warn');
+      setMsg(msg, 'Please enter a valid email address.', 'warn');
       return;
     }
     setMsg(msg, '');
@@ -439,7 +440,7 @@ function wireLogin() {
       options: { shouldCreateUser: false, emailRedirectTo: SITE_URL },
     });
     if (error) { setMsg(msg, error.message, 'bad'); return; }
-    setMsg(msg, 'Mail ist unterwegs. Link in der Mail öffnen, dann hier weiter.', 'ok');
+    setMsg(msg, 'Email is on its way. Open the link in the email, then continue here.', 'ok');
   });
 
   button.addEventListener('click', send);
@@ -454,7 +455,7 @@ function wireLogin() {
       const email = input.value.trim();
       const pw = pass.value;
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || pw.length < 6) {
-        setMsg(msg, 'Bitte E-Mail und Passwort eingeben.', 'warn');
+        setMsg(msg, 'Please enter email and password.', 'warn');
         return;
       }
       setMsg(msg, '');
@@ -475,7 +476,7 @@ function handleUrlError() {
   const desc = params.get('error_description') || params.get('error');
   if (!desc) return;
   const msg = $('#login-msg');
-  setMsg(msg, `Anmeldung fehlgeschlagen: ${desc.replace(/\+/g, ' ')}`, 'bad');
+  setMsg(msg, `Sign-in failed: ${desc.replace(/\+/g, ' ')}`, 'bad');
   history.replaceState(null, '', location.pathname);
 }
 
@@ -500,10 +501,10 @@ function wireGateChrome() {
     const msg = $('#claim-msg');
     const send = () => guard(claimBtn, async () => {
       const value = code.value.trim();
-      if (!value) { setMsg(msg, 'Bitte den Zugangscode eingeben.', 'warn'); return; }
+      if (!value) { setMsg(msg, 'Please enter the access code.', 'warn'); return; }
       const res = await rpc('claim_owner', { p_code: value });
       if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
-      setMsg(msg, 'Zugang übernommen. Sicherheitsfrage wird jetzt eingerichtet.', 'ok');
+      setMsg(msg, 'Access claimed. The security question is being set up now.', 'ok');
       await route();
     });
     claimBtn.addEventListener('click', send);
@@ -519,26 +520,26 @@ function renderQuestionForm() {
   clear(body);
   setMsg(msg, '');
 
-  const q = el('input', { class: 'inp', type: 'text', autocomplete: 'off', placeholder: 'z. B. Name der ersten Werkstatt' });
+  const q = el('input', { class: 'inp', type: 'text', autocomplete: 'off', placeholder: 'e.g. name of the first workshop' });
   const a = el('input', { class: 'inp', type: 'text', autocomplete: 'off', spellcheck: 'false' });
-  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Frage speichern' });
+  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Save question' });
 
   btn.addEventListener('click', () => guard(btn, async () => {
     if (q.value.trim().length < 6 || a.value.trim().length < 3) {
-      setMsg(msg, 'Frage mindestens 6 Zeichen, Antwort mindestens 3 Zeichen.', 'warn');
+      setMsg(msg, 'Question at least 6 characters, answer at least 3.', 'warn');
       return;
     }
     const res = await rpc('set_security_question', { p_question: q.value.trim(), p_answer: a.value.trim() });
     if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
     if (state.status) state.status.has_question = true;
-    setMsg(msg, 'Frage gespeichert. Die Antwort ist nicht wiederherstellbar.', 'ok');
+    setMsg(msg, 'Question saved. The answer cannot be recovered.', 'ok');
     await renderRegisterForm();
   }));
 
   append(body, [
     el('h2', { text: 'Sicherheitsfrage festlegen' }),
-    el('p', { class: 'help', text: 'Diese Frage schützt neue Geräte. Die Antwort wird nur als Hash gespeichert — merk sie dir.' }),
-    el('label', { class: 'lbl', text: 'Frage' }), q,
+    el('p', { class: 'help', text: 'This question protects new devices. The answer is stored only as a hash — remember it.' }),
+    el('label', { class: 'lbl', text: 'Question' }), q,
     el('label', { class: 'lbl', text: 'Antwort' }), a,
     el('div', { class: 'row' }, btn),
   ]);
@@ -580,11 +581,11 @@ async function renderRegisterForm() {
   setMsg(msg, '');
 
   const label = el('input', { class: 'inp', type: 'text', autocomplete: 'off', value: guessLabel() });
-  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Dieses Gerät anmelden' });
+  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Register this device' });
 
   btn.addEventListener('click', () => guard(btn, async () => {
     const res = await rpc('register_device', {
-      p_label: label.value.trim() || 'Gerät',
+      p_label: label.value.trim() || 'Device',
       p_ua: navigator.userAgent.slice(0, 200),
       p_token: deviceToken(),
     });
@@ -601,9 +602,9 @@ async function renderRegisterForm() {
   }));
 
   append(body, [
-    el('h2', { text: 'Neues Gerät freischalten' }),
-    el('p', { class: 'help', text: 'Dieses Gerät ist angemeldet, aber noch nicht freigeschaltet. Zur Bestätigung die Sicherheitsfrage beantworten.' }),
-    el('label', { class: 'lbl', text: 'Bezeichnung dieses Geräts' }), label,
+    el('h2', { text: 'Approve new device' }),
+    el('p', { class: 'help', text: 'This device is signed in but not approved yet. Answer the security question to confirm.' }),
+    el('label', { class: 'lbl', text: 'Name of this device' }), label,
     el('div', { class: 'row' }, btn),
   ]);
 }
@@ -615,16 +616,16 @@ function renderAnswerForm(question, deviceId) {
   setMsg(msg, '');
 
   const answer = el('input', { class: 'inp', type: 'text', autocomplete: 'off', spellcheck: 'false' });
-  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Antwort prüfen' });
+  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Check answer' });
 
   const submit = () => guard(btn, async () => {
-    if (!answer.value.trim()) { setMsg(msg, 'Bitte die Antwort eingeben.', 'warn'); return; }
+    if (!answer.value.trim()) { setMsg(msg, 'Please enter the answer.', 'warn'); return; }
     const res = await rpc('answer_device', { p_device: deviceId, p_answer: answer.value.trim() });
     if (res && res.ok) {
       state.pendingDevice = null;
       writePending(null);
       if (state.status) state.status.trusted = true;
-      setMsg(msg, 'Gerät freigeschaltet.', 'ok');
+      setMsg(msg, 'Device approved.', 'ok');
       await openBoard();
       return;
     }
@@ -645,7 +646,7 @@ function renderAnswerForm(question, deviceId) {
 
   append(body, [
     el('h2', { text: 'Sicherheitsfrage' }),
-    el('p', { class: 'help', text: 'Beantworte die hinterlegte Frage, um dieses Gerät freizuschalten. Drei Fehlversuche sperren die Abfrage für 15 Minuten.' }),
+    el('p', { class: 'help', text: 'Answer the stored question to approve this device. Three failed attempts lock it for 15 minutes.' }),
     el('p', { class: 'rec', text: question }),
     el('label', { class: 'lbl', text: 'Antwort' }), answer,
     el('div', { class: 'row' }, btn),
@@ -694,16 +695,17 @@ async function refresh(force = false) {
         await startDeviceGate();
         return;
       }
-      state.connection = { ok: false, note: data && data.reason ? reasonText(data) : 'Board nicht verfügbar' };
+      state.connection = { ok: false, note: data && data.reason ? reasonText(data) : 'Board unavailable' };
       renderChrome();
       return;
     }
     state.board = data;
-    state.connection = { ok: true, note: 'verbunden' };
+    state.connection = { ok: true, note: 'connected' };
+    await refreshPodcast();
     renderChrome();
     renderActiveView(force);
   } catch (e) {
-    state.connection = { ok: false, note: e.message || 'Verbindung gestört' };
+    state.connection = { ok: false, note: e.message || 'Connection interrupted' };
     renderChrome();
   } finally {
     state.inflight = false;
@@ -723,20 +725,22 @@ function renderChrome() {
 
     const watchdogPill = el('span', {
       class: 'pill',
-      title: failing ? `${failing} Watchdog-Check(s) fehlgeschlagen` : 'Watchdog-Zustand aus dem letzten Lauf',
+      title: failing ? `${failing} watchdog check(s) failing` : 'Watchdog state from the last run',
     }, el('span', { class: `dot ${watchdog.dot}` }), watchdog.text);
 
     append(pills, [
       el('span', { class: 'pill' },
         el('span', { class: `dot ${state.connection.ok ? '' : 'b'}` }),
-        state.connection.ok ? 'verbunden' : 'getrennt'),
+        state.connection.ok ? 'connected' : 'disconnected'),
       watchdogPill,
       el('span', { class: 'pill' },
         el('span', { class: `dot ${openApprovals ? 'w' : 'n'}` }),
-        b ? (openApprovals ? `${openApprovals} Freigabe${openApprovals === 1 ? '' : 'n'} offen` : 'keine offenen Freigaben') : 'Noch keine Daten'),
-      el('span', { class: 'pill', text: `Stand ${fmtTimeSec.format(new Date())}` }),
+        b ? (openApprovals ? `${openApprovals} approval${openApprovals === 1 ? '' : 's'} open` : 'no open approvals') : 'No data yet'),
+      el('span', { class: 'pill', text: `as of ${fmtTimeSec.format(new Date())}` }),
     ]);
   }
+
+  renderPodcast();
 
   const tabCount = $('#tab-approvals');
   if (tabCount) {
@@ -747,9 +751,9 @@ function renderChrome() {
 }
 
 function worstWatchdog(list) {
-  if (!list || !list.length) return { dot: 'n', text: 'Watchdog: keine Daten' };
-  if (list.some((w) => w.status === 'fail')) return { dot: 'b', text: 'Watchdog: Störung' };
-  if (list.some((w) => w.status === 'warn')) return { dot: 'w', text: 'Watchdog: Warnung' };
+  if (!list || !list.length) return { dot: 'n', text: 'Watchdog: no data' };
+  if (list.some((w) => w.status === 'fail')) return { dot: 'b', text: 'Watchdog: alert' };
+  if (list.some((w) => w.status === 'warn')) return { dot: 'w', text: 'Watchdog: warning' };
   return { dot: '', text: 'Watchdog aktiv' };
 }
 
@@ -841,6 +845,106 @@ function dropDraft(key) {
   state.drafts.delete(key);
 }
 
+
+/* ================================================================ Podcast */
+
+async function refreshPodcast(force = false) {
+  const now = Date.now();
+  const active = state.podcast && state.podcast.job
+    && ['queued', 'running'].includes(state.podcast.job.status);
+  if (!force && state.podcastAt && !active && now - state.podcastAt < 30000) return;
+  try {
+    const res = await rpc('podcast_state');
+    if (res && res.ok) {
+      state.podcast = res;
+      state.podcastAt = now;
+    }
+  } catch (e) {
+    /* still: der Balken ist Beiwerk, das Board darf deswegen nicht stoeren */
+  }
+  renderPodcast();
+}
+
+function renderPodcast() {
+  const btn = $('#podcast-btn');
+  const wrap = $('#podcast-mini');
+  const fill = $('#podcast-fill');
+  const text = $('#podcast-text');
+  if (!btn || !wrap || !fill || !text) return;
+
+  const st = state.podcast;
+  const job = st && st.job ? st.job : null;
+
+  if (!job) {
+    wrap.hidden = true;
+    btn.disabled = false;
+    btn.textContent = 'Podcast';
+    btn.title = 'Create a podcast about the current state (English)';
+    return;
+  }
+
+  wrap.hidden = false;
+  wrap.className = 'pod' + (job.status === 'done' ? ' done' : job.status === 'failed' ? ' failed' : '');
+  fill.style.width = Math.max(2, Math.min(100, Number(job.progress) || 0)) + '%';
+
+  if (job.status === 'failed') {
+    text.textContent = 'failed';
+    btn.disabled = false;
+    btn.textContent = 'Retry';
+    btn.title = job.error || 'Podcast failed';
+    return;
+  }
+
+  if (job.status === 'done') {
+    const when = job.published_at ? fmtWhen(job.published_at) : fmtWhen(job.created_at);
+    text.textContent = 'published ' + when;
+    btn.disabled = true;
+    btn.textContent = 'Podcast';
+    btn.title = job.audio_url || 'Published';
+    if (st && st.next_allowed_at && !st.can_request) {
+      btn.disabled = true;
+      btn.textContent = 'Podcast · ' + minutesUntil(st.next_allowed_at) + ' min';
+    }
+    return;
+  }
+
+  const stage = { queued: 'queued', starting: 'starting', collecting: 'reading board',
+                  writing: 'writing script', voicing: 'voice', published: 'published',
+                  mirroring: 'publishing' }[job.stage] || job.stage || 'working';
+  text.textContent = stage + ' · ' + (Number(job.progress) || 0) + ' %';
+  btn.disabled = true;
+  btn.textContent = 'Podcast';
+}
+
+function minutesUntil(iso) {
+  const ms = new Date(iso).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / 60000));
+}
+
+function wirePodcast() {
+  const btn = $('#podcast-btn');
+  if (!btn || btn.dataset.wired) return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const res = await rpc('request_podcast');
+    if (!res || res.ok !== true) {
+      const reason = res && res.reason;
+      if (reason === 'rate_limited' && res.next_allowed_at) {
+        toast('Next podcast in ' + minutesUntil(res.next_allowed_at) + ' min.', 'warn');
+      } else if (reason === 'already_running') {
+        toast('A podcast is already being produced.', 'warn');
+      } else {
+        toast(reasonText(res || {}), 'bad');
+      }
+      btn.disabled = false;
+      return;
+    }
+    toast('Podcast requested — the daemon starts in the next run.', 'ok');
+    await refreshPodcast(true);
+  });
+}
+
 /* ================================================================ 01 Übersicht */
 
 function renderOverview(board) {
@@ -858,7 +962,7 @@ function renderOverview(board) {
   /* --- Organigramm --- */
   clear(orgBox);
   if (!agents.length) {
-    orgBox.append(emptyState('Noch keine Daten — der Daemon hat noch keine Agenten gemeldet.'));
+    orgBox.append(emptyState('No data yet — the daemon has not reported any agents.'));
   } else {
     const coo = agents.find((a) => a.key === 'jarvis')
       || agents.find((a) => !a.reports_to && num(a.level) >= 2)
@@ -871,7 +975,7 @@ function renderOverview(board) {
         el('div', { class: 'av a', text: 'JB' }),
         el('div', {},
           el('div', { class: 'who', text: 'Jan Bleile' }),
-          el('div', { class: 'role', text: 'Inhaber · letzte Instanz für Freigaben, Budget, Strategie' })),
+          el('div', { class: 'role', text: 'Owner · final authority on approvals, budget, strategy' })),
         el('div', { class: 'meta' }, el('span', { class: 'pill' }, el('span', { class: 'dot' }), 'online'))),
       el('div', { class: 'link' }),
       el('div', { class: 'node coo' },
@@ -880,7 +984,7 @@ function renderOverview(board) {
           el('div', { class: 'who', text: coo.name || coo.key }),
           el('div', { class: 'role', text: [coo.role, coo.mandate].filter(Boolean).join(' · ') || 'ohne Auftrag' })),
         el('div', { class: 'meta' },
-          el('span', { class: 'pill', text: `${leaders.length} Bereich${leaders.length === 1 ? '' : 'e'}` }),
+          el('span', { class: 'pill', text: `${leaders.length} area${leaders.length === 1 ? '' : 's'}` }),
           statusPill(coo))),
     );
 
@@ -893,8 +997,8 @@ function renderOverview(board) {
             el('div', {},
               el('div', { class: 'who', text: lead.name || lead.key }),
               el('div', { class: 'role', text: lead.role || 'ohne Rolle' }))),
-          el('div', { class: 'trait', text: lead.personality ? `„${lead.personality}“` : 'Keine Persönlichkeit hinterlegt.' }),
-          el('span', { class: 'badge', text: lead.limits || lead.model || 'keine Grenzen hinterlegt' })));
+          el('div', { class: 'trait', text: lead.personality ? `„${lead.personality}“` : 'No personality on file.' }),
+          el('span', { class: 'badge', text: lead.limits || lead.model || 'no limits on file' })));
       }
       org.append(team);
     }
@@ -904,7 +1008,7 @@ function renderOverview(board) {
   /* --- Live-Karten --- */
   clear(cardsBox);
   if (!agents.length) {
-    cardsBox.append(emptyState('Noch keine Daten.'));
+    cardsBox.append(emptyState('No data yet.'));
     return;
   }
   const grid = el('div', { class: 'grid' });
@@ -930,7 +1034,7 @@ function renderOverview(board) {
         class: 'step',
         text: active
           ? [active.current_step, active.detail].filter(Boolean).join(' · ') || 'ohne Schrittangabe'
-          : (agent.mandate || 'Auftrag noch nicht beschrieben'),
+          : (agent.mandate || 'mandate not described yet'),
       }),
       el('div', { class: 'bar' }, el('i', {
         style: { width: `${Math.max(2, Math.min(100, num(active ? active.progress : 0)))}%` },
@@ -938,11 +1042,11 @@ function renderOverview(board) {
       })),
       el('div', { class: 'meta' },
         el('span', {}, 'Heartbeat ', el('b', { text: fmtAge(agent.last_seen) })),
-        el('span', {}, 'Heute ', el('b', { text: `${fmtTok(agent.tokens_today)} Token` })),
+        el('span', {}, 'Today ', el('b', { text: `${fmtTok(agent.tokens_today)} tokens` })),
         el('span', {}, el('b', { text: fmtEur(agent.cost_eur_today) }))),
       el('div', { class: 'acts' },
         el('button', {
-          class: 'btn acc', type: 'button', text: 'Anweisung',
+          class: 'btn acc', type: 'button', text: 'Instruction',
           onclick: () => { setView('live'); setTimeout(() => focusInstruction(agent.key), 0); },
         }),
         el('button', {
@@ -970,7 +1074,7 @@ function renderLive(board) {
   const events = board ? board.events || [] : [];
 
   if (!agents.length) {
-    box.append(emptyState('Noch keine Daten — keine Agenten gemeldet.'));
+    box.append(emptyState('No data yet — no agents reported.'));
     return;
   }
 
@@ -983,21 +1087,21 @@ function renderLive(board) {
     const draftKey = `instr:${agent.key}`;
 
     const field = draftField(draftKey, {
-      placeholder: `Anweisung an ${agent.name || agent.key} — was soll als Nächstes passieren?`,
+      placeholder: `Instruction for ${agent.name || agent.key} — what should happen next?`,
       rows: 2,
     });
     field.id = `instr-${agent.key}`;
 
     const msg = el('p', { class: 'msg' });
-    const send = el('button', { class: 'btn acc', type: 'button', text: 'Anweisung senden' });
+    const send = el('button', { class: 'btn acc', type: 'button', text: 'Send instruction' });
     send.addEventListener('click', () => guard(send, async () => {
       const body = takeDraft(draftKey);
-      if (body.length < 3) { setMsg(msg, 'Anweisung zu kurz (mindestens 3 Zeichen).', 'warn'); return; }
+      if (body.length < 3) { setMsg(msg, 'Instruction too short (at least 3 characters).', 'warn'); return; }
       const res = await rpc('instruct', { p_target: agent.key, p_body: body });
       if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
       dropDraft(draftKey);
       field.value = '';
-      setMsg(msg, 'Anweisung in der Warteschlange. Der Daemon übergibt sie an Hermes.', 'ok');
+      setMsg(msg, 'Instruction queued. The daemon hands it to Hermes.', 'ok');
       refresh();
     }));
 
@@ -1009,7 +1113,7 @@ function renderLive(board) {
       guard(pauseBtn, async () => {
         const res = await rpc('upsert_task', {
           p_id: card.id, p_agent: agent.key, p_title: null, p_detail: null,
-          p_status: 'blocked', p_progress: null, p_step: 'Von Jan pausiert',
+          p_status: 'blocked', p_progress: null, p_step: 'Paused by Jan',
         });
         if (!res || !res.ok) { toast(reasonText(res), 'bad'); return; }
         toast(`„${card.title}“ pausiert.`, 'ok');
@@ -1017,7 +1121,7 @@ function renderLive(board) {
       });
     });
 
-    const restartBtn = el('button', { class: 'btn', type: 'button', text: 'Neu starten' });
+    const restartBtn = el('button', { class: 'btn', type: 'button', text: 'Restart' });
     restartBtn.disabled = !current.length;
     restartBtn.addEventListener('click', () => {
       const card = current[0];
@@ -1025,10 +1129,10 @@ function renderLive(board) {
       guard(restartBtn, async () => {
         const res = await rpc('upsert_task', {
           p_id: card.id, p_agent: agent.key, p_title: null, p_detail: null,
-          p_status: 'todo', p_progress: 0, p_step: 'Von Jan neu angestoßen',
+          p_status: 'todo', p_progress: 0, p_step: 'Restarted by Jan',
         });
         if (!res || !res.ok) { toast(reasonText(res), 'bad'); return; }
-        toast(`„${card.title}“ neu angestoßen.`, 'ok');
+        toast(`"${card.title}" restarted.`, 'ok');
         refresh();
       });
     });
@@ -1043,33 +1147,33 @@ function renderLive(board) {
 
       el('div', { class: 'meta', style: { marginBottom: '10px' } },
         el('span', {}, 'Heartbeat ', el('b', { text: fmtAge(agent.last_seen) })),
-        el('span', {}, 'Token heute ', el('b', { text: fmtTok(agent.tokens_today) })),
+        el('span', {}, 'Tokens today ', el('b', { text: fmtTok(agent.tokens_today) })),
         el('span', {}, el('b', { text: fmtEur(agent.cost_eur_today) })),
-        el('span', {}, 'Budget ', el('b', { text: fmtEur(agent.budget_eur_day) }), ' / Tag')),
+        el('span', {}, 'Budget ', el('b', { text: fmtEur(agent.budget_eur_day) }), ' / day')),
 
       current.length
         ? el('div', {}, ...current.slice(0, 6).map((t) => el('div', { style: { padding: '7px 0', borderTop: '1px solid #1e242c' } },
           el('div', { class: 'task', text: t.title || 'ohne Titel' }),
-          el('div', { class: 'step', text: [TASK_STATUS[t.status] || t.status, t.current_step, `Stand ${fmtAge(t.updated_at)}`].filter(Boolean).join(' · ') }),
+          el('div', { class: 'step', text: [TASK_STATUS[t.status] || t.status, t.current_step, `as of ${fmtAge(t.updated_at)}`].filter(Boolean).join(' · ') }),
           el('div', { class: 'bar' }, el('i', {
             style: { width: `${Math.max(2, Math.min(100, num(t.progress)))}%` },
             class: t.status === 'blocked' ? 'w' : null,
           })))))
-        : el('div', { class: 'step', text: 'Keine offene Karte für diesen Agenten.' }),
+        : el('div', { class: 'step', text: 'No open card for this agent.' }),
 
       el('div', { style: { borderTop: '1px solid #1e242c', marginTop: '6px', paddingTop: '10px' } },
-        el('label', { class: 'lbl', for: `instr-${agent.key}`, text: `Anweisung an ${agent.name || agent.key}` }),
+        el('label', { class: 'lbl', for: `instr-${agent.key}`, text: `Instruction for ${agent.name || agent.key}` }),
         field,
         el('div', { class: 'row' }, send, pauseBtn, restartBtn),
         msg),
 
       el('div', { style: { borderTop: '1px solid #1e242c', marginTop: '10px', paddingTop: '9px' } },
-        el('div', { class: 'role', style: { marginBottom: '6px' }, text: 'Verlauf' }),
+        el('div', { class: 'role', style: { marginBottom: '6px' }, text: 'History' }),
         history.length
           ? el('div', {}, ...history.map((e) => el('div', { class: 'inc', style: { fontSize: '11.5px', padding: '6px 0' } },
             el('div', { class: 'tm', text: fmtTime.format(dateOf(e.ts) || new Date()) }),
             el('div', {}, e.message || e.kind || '—'))))
-          : el('div', { class: 'step', text: 'Noch keine Ereignisse.' })));
+          : el('div', { class: 'step', text: 'No events yet.' })));
 
     wrap.append(card);
   }
@@ -1102,7 +1206,7 @@ function renderApprovals(board) {
     .sort((a, b) => (dateOf(b.decided_at) || dateOf(b.created_at) || 0) - (dateOf(a.decided_at) || dateOf(a.created_at) || 0));
 
   if (!all.length) {
-    box.append(emptyState('Noch keine Daten — keine Freigaben vorhanden.'));
+    box.append(emptyState('No data yet — no approvals.'));
     return;
   }
 
@@ -1115,8 +1219,8 @@ function renderApprovals(board) {
     const msg = el('p', { class: 'msg' });
     const noteOpen = state.openNote === ap.id;
 
-    const note = draftField(draftKey, { placeholder: 'Notiz oder Anweisung zur Entscheidung (optional)', rows: 2 });
-    const noteWrap = el('div', { hidden: !noteOpen }, el('label', { class: 'lbl', text: 'Notiz / Anweisung' }), note);
+    const note = draftField(draftKey, { placeholder: 'Note or instruction for this decision (optional)', rows: 2 });
+    const noteWrap = el('div', { hidden: !noteOpen }, el('label', { class: 'lbl', text: 'Note / instruction' }), note);
 
     const decide = (decision, withInstruction) => async (ev) => {
       const btn = ev.currentTarget;
@@ -1130,48 +1234,48 @@ function renderApprovals(board) {
         if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
         if (withInstruction) {
           if (text.length < 3) {
-            setMsg(msg, 'Entscheidung gespeichert, aber ohne Anweisung: Text zu kurz.', 'warn');
+            setMsg(msg, 'Decision saved but without an instruction: text too short.', 'warn');
             dropDraft(draftKey);
             refresh();
             return;
           }
           const ins = await rpc('instruct', { p_target: ap.requested_by, p_body: text });
           if (!ins || !ins.ok) {
-            setMsg(msg, `Entscheidung gespeichert, Anweisung fehlgeschlagen: ${reasonText(ins)}`, 'warn');
+            setMsg(msg, `Decision saved, instruction failed: ${reasonText(ins)}`, 'warn');
             refresh();
             return;
           }
         }
         dropDraft(draftKey);
         state.openNote = null;
-        toast(decision === 'approved' ? 'Genehmigt.' : decision === 'denied' ? 'Abgelehnt.' : 'Zurückgezogen.', 'ok');
+        toast(decision === 'approved' ? 'Approved.' : decision === 'denied' ? 'Denied.' : 'Withdrawn.', 'ok');
         refresh();
       });
     };
 
-    const toggle = el('button', { class: 'btn', type: 'button', text: noteOpen ? 'Ohne Anweisung' : 'Mit Anweisung' });
+    const toggle = el('button', { class: 'btn', type: 'button', text: noteOpen ? 'Without instruction' : 'With instruction' });
     toggle.addEventListener('click', () => {
       state.openNote = noteOpen ? null : ap.id;
       renderActiveView(true);
       if (!noteOpen) setTimeout(() => note.focus(), 0);
     });
 
-    const withdraw = el('button', { class: 'btn plain', type: 'button', text: 'Zurückziehen' });
+    const withdraw = el('button', { class: 'btn plain', type: 'button', text: 'Withdraw' });
     withdraw.addEventListener('click', decide('withdrawn', false));
 
     box.append(el('div', { class: 'ap' },
       el('div', { class: 't', text: ap.title || 'Ohne Titel' }),
       ap.question ? el('div', { class: 'q', text: ap.question }) : null,
       el('div', { class: 'kv' },
-        el('span', {}, 'von ', el('b', { text: ap.requested_by || 'unbekannt' })),
+        el('span', {}, 'by ', el('b', { text: ap.requested_by || 'unknown' })),
         el('span', {}, 'Art ', el('b', { text: APPROVAL_KIND[ap.kind] || ap.kind || '—' })),
-        el('span', {}, 'Kosten ', el('b', {
+        el('span', {}, 'Cost ', el('b', {
           text: ap.cost_tokens || ap.cost_eur
             ? `${fmtTok(ap.cost_tokens)} Token / ${fmtEur(ap.cost_eur)}`
-            : 'keine Angabe',
+            : 'not specified',
         })),
-        el('span', {}, 'Risiko ', el('b', { class: `risk ${ap.risk || ''}`, text: RISK[ap.risk] || ap.risk || '—' })),
-        el('span', {}, 'Frist ', el('b', { text: ap.expires_at ? `${fmtUntil(ap.expires_at)} (${fmtWhen(ap.expires_at)})` : 'keine Frist' })),
+        el('span', {}, 'Risk ', el('b', { class: `risk ${ap.risk || ''}`, text: RISK[ap.risk] || ap.risk || '—' })),
+        el('span', {}, 'Deadline ', el('b', { text: ap.expires_at ? `${fmtUntil(ap.expires_at)} (${fmtWhen(ap.expires_at)})` : 'no deadline' })),
         el('span', {}, 'Standard ', el('b', {
           text: ap.default_decision === 'approve' ? 'genehmigen' : ap.default_decision === 'deny' ? 'ablehnen' : '—',
         })),
@@ -1190,7 +1294,7 @@ function renderApprovals(board) {
   }
 
   if (decided.length) {
-    box.append(el('h2', { class: 'sec', text: 'Entscheidungen der letzten 7 Tage' }));
+    box.append(el('h2', { class: 'sec', text: 'Decisions of the last 7 days' }));
     const rows = decided.slice(0, 30).map((ap) => el('tr', {},
       el('td', { text: fmtWhen(ap.decided_at || ap.created_at) }),
       el('td', { text: ap.title || '—' }),
@@ -1201,11 +1305,11 @@ function renderApprovals(board) {
       el('table', { class: 'tbl' },
         el('thead', {}, el('tr', {},
           el('th', { text: 'Entschieden' }), el('th', { text: 'Titel' }),
-          el('th', { text: 'Von' }), el('th', { text: 'Ergebnis' }), el('th', { text: 'Notiz' }))),
+          el('th', { text: 'By' }), el('th', { text: 'Result' }), el('th', { text: 'Note' }))),
         el('tbody', {}, ...rows)))));
   }
 
-  box.append(el('p', { class: 'note', text: 'Regel: keine Freigabe heißt nicht Stillstand. Nach Ablauf der Frist greift die Standard-Entscheidung; der Daemon zieht sie nachvollziehbar nach.' }));
+  box.append(el('p', { class: 'note', text: 'Rule: no approval does not mean standstill. When the deadline passes the default decision applies; the daemon records it.' }));
 }
 
 /* ================================================================ 04 Analytik */
@@ -1229,7 +1333,7 @@ function renderAnalytics(board) {
   const approvals = board ? board.approvals || [] : [];
 
   if (!board) {
-    box.append(emptyState('Noch keine Daten.'));
+    box.append(emptyState('No data yet.'));
     return;
   }
 
@@ -1257,20 +1361,20 @@ function renderAnalytics(board) {
   const settings = (board && board.settings) || {};
   const budgetFromSettings = settings.budgets && (settings.budgets.total_eur_day ?? settings.budgets.day_eur);
   const budgetLabel = budgetFromSettings != null
-    ? `von ${fmtEur(budgetFromSettings)} Tagesbudget`
-    : budgetSum > 0 ? `von ${fmtEur(budgetSum)} Summe der Agentenbudgets` : 'kein Budget hinterlegt';
+    ? `of ${fmtEur(budgetFromSettings)} daily budget`
+    : budgetSum > 0 ? `of ${fmtEur(budgetSum)} total agent budgets` : 'no budget on file';
 
   box.append(el('div', { class: 'kpis' },
-    kpi('Karten heute', fmtInt(cardsToday), metrics.length ? 'aus den Stundenwerten des Daemons' : 'Noch keine Daten'),
-    kpi('Nachtfortschritt 22–07', fmtInt(nightDone), metrics.length ? 'Karten in der Nacht erledigt' : 'Noch keine Daten'),
-    kpi('Kosten heute', fmtEur(costToday), budgetLabel),
+    kpi('Cards today', fmtInt(cardsToday), metrics.length ? 'from the daemon hourly values' : 'No data yet'),
+    kpi('Night progress 22–07', fmtInt(nightDone), metrics.length ? 'cards completed at night' : 'No data yet'),
+    kpi('Cost today', fmtEur(costToday), budgetLabel),
     kpi('Blockiert', fmtInt(blockedTasks.length),
-      waitingOnJan.length ? `davon ${waitingOnJan.length} wartet auf dich` : 'keine wartet auf dich')));
+      waitingOnJan.length ? `davon ${waitingOnJan.length} wartet auf dich` : 'nothing waits for you')));
 
   /* --- Diagramm --- */
   const chartBox = el('div', { class: 'box' },
-    el('h3', { text: 'Durchsatz und Token pro Tag' }),
-    el('p', { class: 'sub', text: 'Karten (Balken) und Token (Linie), aus den Stundenwerten — bis zu 7 Tage, je nach Datenlage.' }));
+    el('h3', { text: 'Throughput and tokens per day' }),
+    el('p', { class: 'sub', text: 'Cards (bars) and tokens (line) from the hourly values — up to 7 days, depending on data.' }));
 
   const byDay = new Map();
   for (const m of metrics) {
@@ -1286,12 +1390,12 @@ function renderAnalytics(board) {
   const days = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-14);
 
   if (!days.length) {
-    chartBox.append(emptyState('Noch keine Daten.'));
+    chartBox.append(emptyState('No data yet.'));
   } else {
     chartBox.append(buildChart(days));
     chartBox.append(el('div', { class: 'legend' },
-      el('span', {}, el('i', { style: { background: '#3d6d94' } }), 'Karten pro Tag'),
-      el('span', {}, el('i', { style: { background: '#4da3ff' } }), 'Token pro Tag')));
+      el('span', {}, el('i', { style: { background: '#3d6d94' } }), 'Cards per day'),
+      el('span', {}, el('i', { style: { background: '#4da3ff' } }), 'Tokens per day')));
   }
 
   /* --- Marktreife-Kurzfassung --- */
@@ -1299,16 +1403,16 @@ function renderAnalytics(board) {
   const score = board.readiness_score;
   const side = el('div', { class: 'box' },
     el('h3', { text: 'Marktreife' }),
-    el('p', { class: 'sub', text: rd.length ? `${rd.length} Kriterien, gewichtet` : 'Noch keine Kriterien hinterlegt' }));
+    el('p', { class: 'sub', text: rd.length ? `${rd.length} weighted criteria` : 'No criteria on file' }));
   if (!rd.length) {
-    side.append(emptyState('Noch keine Daten.'));
+    side.append(emptyState('No data yet.'));
   } else {
     side.append(el('div', { class: 'gauge' },
       donut(score),
       el('table', { class: 'rub' }, el('tbody', {}, ...rd.slice(0, 8).map((r) => el('tr', {},
         el('td', {}, `${r.label || r.key} `, el('span', { class: 's', text: `${num(r.score)}/5` })),
         el('td', { text: `${Math.round(num(r.weight) * 100)} %` })))))));
-    side.append(el('p', { class: 'note' }, 'Details und Änderung unter „Marktreife“.'));
+    side.append(el('p', { class: 'note' }, 'Details and edits under "Readiness".'));
   }
 
   box.append(el('div', { class: 'two' }, chartBox, side));
@@ -1330,17 +1434,17 @@ function renderAnalytics(board) {
       el('td', {}, el('span', { class: `st ${st.cls}`, text: st.label })));
   });
 
-  box.append(el('h2', { class: 'sec', text: 'Je Agent' }));
+  box.append(el('h2', { class: 'sec', text: 'Per agent' }));
   if (!agents.length) {
-    box.append(emptyState('Noch keine Daten.'));
+    box.append(emptyState('No data yet.'));
   } else {
     box.append(el('div', { class: 'card' }, el('div', { class: 'tbl-wrap' },
       el('table', { class: 'tbl' },
         el('thead', {}, el('tr', {},
-          el('th', { text: 'Agent' }), el('th', { text: 'Rolle' }),
-          el('th', { class: 'num', text: 'Karten heute' }), el('th', { class: 'num', text: 'Token heute' }),
-          el('th', { class: 'num', text: 'Kosten heute' }), el('th', { class: 'num', text: 'Budget/Tag' }),
-          el('th', { class: 'num', text: 'blockiert' }), el('th', { text: 'Status' }))),
+          el('th', { text: 'Agent' }), el('th', { text: 'Role' }),
+          el('th', { class: 'num', text: 'Cards today' }), el('th', { class: 'num', text: 'Tokens today' }),
+          el('th', { class: 'num', text: 'Cost today' }), el('th', { class: 'num', text: 'Budget/day' }),
+          el('th', { class: 'num', text: 'blocked' }), el('th', { text: 'Status' }))),
         el('tbody', {}, ...rows)))));
   }
 
@@ -1377,7 +1481,7 @@ function buildChart(days) {
 
   const root = svg('svg', {
     viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img',
-    'aria-label': 'Durchsatz und Token pro Tag',
+    'aria-label': 'Throughput and tokens per day',
   });
 
   // Hilfslinien
@@ -1422,7 +1526,7 @@ function renderReadiness(board) {
 
   const rd = board ? board.readiness || [] : [];
   if (!rd.length) {
-    box.append(emptyState('Noch keine Daten — keine Kriterien hinterlegt.'));
+    box.append(emptyState('No data yet — no criteria stored.'));
     return;
   }
 
@@ -1431,14 +1535,14 @@ function renderReadiness(board) {
 
   box.append(el('div', { class: 'box' },
     el('h3', { text: 'Marktreife — ehrlich gerechnet' }),
-    el('p', { class: 'sub', text: `${rd.length} Kriterien · Summe der Gewichte ${Math.round(weightSum * 100)} % · Score 0–5` }),
+    el('p', { class: 'sub', text: `${rd.length} criteria · weights total ${Math.round(weightSum * 100)} % · score 0–5` }),
     el('div', { class: 'gauge' },
       donut(score),
       el('table', { class: 'rub' }, el('tbody', {}, ...rd.map((r) => el('tr', {},
         el('td', {}, `${r.label || r.key} `, el('span', { class: 's', text: `${num(r.score)}/5` })),
         el('td', { text: `${Math.round(num(r.weight) * 100)} %` }))))))));
 
-  box.append(el('h2', { class: 'sec', text: 'Kriterien' }));
+  box.append(el('h2', { class: 'sec', text: 'Criteria' }));
 
   const list = el('div', { class: 'card' });
   for (const r of rd) {
@@ -1455,28 +1559,28 @@ function renderReadiness(board) {
     const item = el('div', { class: 'crit' },
       el('div', { class: 'head' },
         el('span', { class: 'name', text: r.label || r.key }),
-        el('span', { class: 'w', text: `Gewicht ${Math.round(num(r.weight) * 100)} %` }),
+        el('span', { class: 'w', text: `Weight ${Math.round(num(r.weight) * 100)} %` }),
         el('span', { class: 'sc' }, `${num(r.score)}/5`, scoreDots(num(r.score))),
-        el('span', { class: 'w', text: r.updated_at ? `Stand ${fmtWhen(r.updated_at)}` : 'nie bewertet' })),
+        el('span', { class: 'w', text: r.updated_at ? `as of ${fmtWhen(r.updated_at)}` : 'nie bewertet' })),
       ev);
 
     if (open) {
       const msg = el('p', { class: 'msg' });
       const select = el('select', { class: 'inp' });
       for (let i = 0; i <= 5; i += 1) {
-        const opt = el('option', { value: String(i), text: `${i} — ${['kein Stand', 'Idee', 'Prototyp', 'funktioniert intern', 'funktioniert im Feld', 'belegt mit Evidenz'][i]}` });
+        const opt = el('option', { value: String(i), text: `${i} — ${['nothing yet', 'idea', 'prototype', 'works internally', 'works in the field', 'proven with customers'][i]}` });
         if (num(r.score) === i) opt.selected = true;
         select.append(opt);
       }
-      const note = draftField(noteKey, { placeholder: 'Evidenz: was genau wurde gemessen, geprüft oder belegt? (Pflicht)', rows: 2 }, r.evidence_note || '');
+      const note = draftField(noteKey, { placeholder: 'Evidence: what exactly was measured, checked or proven? (required)', rows: 2 }, r.evidence_note || '');
       const url = el('input', { class: 'inp', type: 'url', placeholder: 'https://… (optional)', value: r.evidence_url || '' });
       url.addEventListener('input', () => state.drafts.set(urlKey, url.value));
 
-      const save = el('button', { class: 'btn acc', type: 'button', text: 'Score speichern' });
+      const save = el('button', { class: 'btn acc', type: 'button', text: 'Save score' });
       save.addEventListener('click', () => guard(save, async () => {
         const text = takeDraft(noteKey, r.evidence_note || '');
         if (text.length < 5) {
-          setMsg(msg, 'Evidenztext ist Pflicht (mindestens 5 Zeichen). Ohne Beleg keine Änderung.', 'warn');
+          setMsg(msg, 'Evidence text is required (at least 5 characters). No change without proof.', 'warn');
           return;
         }
         const res = await rpc('update_readiness', {
@@ -1492,7 +1596,7 @@ function renderReadiness(board) {
         refresh();
       }));
 
-      const cancel = el('button', { class: 'btn plain', type: 'button', text: 'Abbrechen' });
+      const cancel = el('button', { class: 'btn plain', type: 'button', text: 'Cancel' });
       cancel.addEventListener('click', () => { state.openCrit = null; renderActiveView(true); });
 
       item.append(el('div', { style: { marginTop: '8px' } },
@@ -1502,7 +1606,7 @@ function renderReadiness(board) {
         el('div', { class: 'row' }, save, cancel),
         msg));
     } else {
-      const edit = el('button', { class: 'btn', type: 'button', text: 'Score ändern' });
+      const edit = el('button', { class: 'btn', type: 'button', text: 'Change score' });
       edit.addEventListener('click', () => {
         state.openCrit = key;
         renderActiveView(true);
@@ -1513,7 +1617,7 @@ function renderReadiness(board) {
     list.append(item);
   }
   box.append(list);
-  box.append(el('p', { class: 'note' }, 'Regel: kein Score ohne Evidenz. „Läuft bei mir“ ohne Messung zählt nicht.'));
+  box.append(el('p', { class: 'note' }, 'Rule: no score without evidence. "Works for me" without a measurement does not count.'));
 }
 
 function scoreDots(score) {
@@ -1540,14 +1644,14 @@ function renderWatchdog(board) {
   if (!box) return;
   clear(box);
   const list = board ? board.watchdog || [] : [];
-  if (!list.length) { box.append(emptyState('Noch keine Daten — der Watchdog hat noch nicht gemeldet.')); return; }
+  if (!list.length) { box.append(emptyState('No data yet — the watchdog has not reported.')); return; }
   const card = el('div', { class: 'card' });
   for (const w of list) {
     const dot = w.status === 'ok' ? '' : w.status === 'warn' ? 'w' : w.status === 'fail' ? 'b' : 'n';
     card.append(el('div', { class: 'wd' },
       el('span', { class: 'dot', style: { background: dot === 'w' ? 'var(--warn)' : dot === 'b' ? 'var(--bad)' : dot === 'n' ? '#3a424f' : 'var(--ok)' } }),
       el('span', { class: 'k', text: w.check_key || '—' }),
-      el('span', { class: 'd', text: w.detail || (w.status === 'ok' ? 'keine Auffälligkeit' : 'ohne Detail') }),
+      el('span', { class: 'd', text: w.detail || (w.status === 'ok' ? 'no anomaly' : 'no detail') }),
       el('span', { class: 'l', text: w.latency_ms != null ? `${fmtInt(w.latency_ms)} ms` : '' }),
       el('span', { class: 'l', text: w.ts ? fmtWhen(w.ts) : '' })));
   }
@@ -1559,7 +1663,7 @@ function renderIncidents(board) {
   if (!box) return;
   clear(box);
   const list = board ? board.incidents || [] : [];
-  if (!list.length) { box.append(emptyState('Noch keine Daten — keine Vorfälle gemeldet.')); return; }
+  if (!list.length) { box.append(emptyState('No data yet — no incidents reported.')); return; }
   const feed = el('div', { class: 'feed' });
   for (const inc of list.slice(0, 25)) {
     const sev = inc.severity || 'info';
@@ -1571,7 +1675,7 @@ function renderIncidents(board) {
         el('span', { class: 'role', text: inc.source || '' }),
         el('div', { text: inc.summary || '—' }),
         inc.action_taken ? el('div', { class: 'fix', text: inc.action_taken }) : null,
-        inc.needs_jan ? el('div', { class: 'man', text: 'Braucht eine Entscheidung von dir.' }) : null,
+        inc.needs_jan ? el('div', { class: 'man', text: 'Needs a decision from you.' }) : null,
         inc.resolved_at ? el('div', { class: 'role', text: `erledigt ${fmtWhen(inc.resolved_at)}` }) : null)));
   }
   box.append(feed);
@@ -1582,7 +1686,7 @@ function renderDevices(board) {
   if (!box) return;
   clear(box);
   const list = board ? board.devices || [] : [];
-  if (!list.length) { box.append(emptyState('Noch keine Daten — keine Geräte gemeldet.')); return; }
+  if (!list.length) { box.append(emptyState('No data yet — no devices reported.')); return; }
 
   const rows = list.map((d) => {
     const isRevoked = d.status === 'revoked';
@@ -1606,14 +1710,14 @@ function renderDevices(board) {
         guard(btn, async () => {
           const res = await rpc('revoke_device', { p_device: d.id });
           if (!res || !res.ok) { toast(reasonText(res), 'bad'); return; }
-          toast('Gerät widerrufen.', 'ok');
+          toast('Device revoked.', 'ok');
           refresh();
         });
       });
     }
     const label = d.status === 'trusted' ? 'freigeschaltet' : d.status === 'pending' ? 'wartet auf Antwort' : 'widerrufen';
     return el('tr', {},
-      el('td', {}, el('b', { text: d.label || 'Gerät' })),
+      el('td', {}, el('b', { text: d.label || 'Device' })),
       el('td', { text: label }),
       el('td', { text: d.created_at ? fmtWhen(d.created_at) : '—' }),
       el('td', { text: d.trusted_at ? fmtWhen(d.trusted_at) : '—' }),
@@ -1622,11 +1726,11 @@ function renderDevices(board) {
   });
 
   box.append(el('div', { class: 'card' },
-    el('p', { class: 'sub', text: 'Nur freigeschaltete Geräte sehen Inhalte. Widerruf wirkt sofort — dieses Gerät verliert dann den Zugang.' }),
+    el('p', { class: 'sub', text: 'Only approved devices see content. Revocation is immediate — this device loses access.' }),
     el('div', { class: 'tbl-wrap' },
       el('table', { class: 'tbl' },
         el('thead', {}, el('tr', {},
-          el('th', { text: 'Bezeichnung' }), el('th', { text: 'Status' }), el('th', { text: 'Angelegt' }),
+          el('th', { text: 'Name' }), el('th', { text: 'Status' }), el('th', { text: 'Added' }),
           el('th', { text: 'Freigeschaltet' }), el('th', { text: 'Zuletzt gesehen' }), el('th', { text: '' }))),
         el('tbody', {}, ...rows)))));
 }
@@ -1636,10 +1740,10 @@ function renderPasswordChange() {
   if (!box) return;
   clear(box);
 
-  const p1 = el('input', { class: 'inp', type: 'password', autocomplete: 'new-password', placeholder: 'Neues Passwort' });
-  const p2 = el('input', { class: 'inp', type: 'password', autocomplete: 'new-password', placeholder: 'Passwort wiederholen' });
+  const p1 = el('input', { class: 'inp', type: 'password', autocomplete: 'new-password', placeholder: 'New password' });
+  const p2 = el('input', { class: 'inp', type: 'password', autocomplete: 'new-password', placeholder: 'Repeat password' });
   const msg = el('p', { class: 'msg' });
-  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Passwort ändern' });
+  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Change password' });
 
   btn.addEventListener('click', () => guard(btn, async () => {
     if (p1.value.length < 12) { setMsg(msg, 'Mindestens 12 Zeichen.', 'warn'); return; }
@@ -1647,12 +1751,12 @@ function renderPasswordChange() {
     const { error } = await sb.auth.updateUser({ password: p1.value });
     if (error) { setMsg(msg, error.message, 'bad'); return; }
     p1.value = ''; p2.value = '';
-    setMsg(msg, 'Passwort geändert. Beim nächsten Login gilt das neue.', 'ok');
+    setMsg(msg, 'Password changed. The new one applies at the next sign-in.', 'ok');
   }));
 
   box.append(el('div', { class: 'card' },
-    el('p', { class: 'sub', text: 'Ersetzt das Passwort aus der Einrichtung. Mindestens 12 Zeichen; ein Passwortsatz aus vier Wörtern ist gut merkbar.' }),
-    el('label', { class: 'lbl', text: 'Neues Passwort' }), p1,
+    el('p', { class: 'sub', text: 'Replaces the setup password. At least 12 characters; a passphrase of four words is easy to remember.' }),
+    el('label', { class: 'lbl', text: 'New password' }), p1,
     el('label', { class: 'lbl', text: 'Wiederholen' }), p2,
     el('div', { class: 'row' }, btn),
     msg));
@@ -1663,25 +1767,25 @@ function renderSecurityQuestion() {
   if (!box) return;
   clear(box);
 
-  const q = el('input', { class: 'inp', type: 'text', autocomplete: 'off', placeholder: 'Neue Frage' });
+  const q = el('input', { class: 'inp', type: 'text', autocomplete: 'off', placeholder: 'New question' });
   const a = el('input', { class: 'inp', type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: 'Neue Antwort' });
   const msg = el('p', { class: 'msg' });
-  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Sicherheitsfrage ändern' });
+  const btn = el('button', { class: 'btn acc', type: 'button', text: 'Change security question' });
 
   btn.addEventListener('click', () => guard(btn, async () => {
     if (q.value.trim().length < 6 || a.value.trim().length < 3) {
-      setMsg(msg, 'Frage mindestens 6 Zeichen, Antwort mindestens 3 Zeichen.', 'warn');
+      setMsg(msg, 'Question at least 6 characters, answer at least 3.', 'warn');
       return;
     }
     const res = await rpc('set_security_question', { p_question: q.value.trim(), p_answer: a.value.trim() });
     if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
     q.value = ''; a.value = '';
-    setMsg(msg, 'Sicherheitsfrage geändert. Bestehende Freigaben bleiben gültig.', 'ok');
+    setMsg(msg, 'Security question changed. Existing approvals stay valid.', 'ok');
   }));
 
   box.append(el('div', { class: 'card' },
-    el('p', { class: 'sub', text: 'Gilt für neue Geräte. Die Antwort wird nur als Hash gespeichert.' }),
-    el('label', { class: 'lbl', text: 'Frage' }), q,
+    el('p', { class: 'sub', text: 'Applies to new devices. The answer is stored only as a hash.' }),
+    el('label', { class: 'lbl', text: 'Question' }), q,
     el('label', { class: 'lbl', text: 'Antwort' }), a,
     el('div', { class: 'row' }, btn),
     msg));
@@ -1694,7 +1798,7 @@ function renderSettings(board) {
   const settings = (board && board.settings) || {};
   const keys = Object.keys(settings);
   if (!keys.length) {
-    box.append(emptyState('Noch keine Daten — keine Einstellungen hinterlegt.'));
+    box.append(emptyState('No data yet — no settings stored.'));
     return;
   }
 
@@ -1704,14 +1808,14 @@ function renderSettings(board) {
     const area = draftField(draftKey, { rows: Math.min(12, Math.max(4, pretty.split('\n').length)), spellcheck: 'false' }, pretty);
     area.className = 'inp mono';
     const msg = el('p', { class: 'msg' });
-    const btn = el('button', { class: 'btn acc', type: 'button', text: `${key} speichern` });
+    const btn = el('button', { class: 'btn acc', type: 'button', text: `Save ${key}` });
 
     btn.addEventListener('click', () => guard(btn, async () => {
       let parsed;
       try {
         parsed = JSON.parse(area.value);
       } catch (e) {
-        setMsg(msg, `Kein gültiges JSON: ${e.message}`, 'bad');
+        setMsg(msg, `Invalid JSON: ${e.message}`, 'bad');
         return;
       }
       const res = await rpc('set_setting', { p_key: key, p_value: parsed });
@@ -1728,7 +1832,7 @@ function renderSettings(board) {
       msg));
   }
 
-  box.append(el('p', { class: 'note', text: 'Werte sind JSON. Unbekannte Felder werden unverändert gespeichert; der Daemon liest beim nächsten Lauf den neuen Stand.' }));
+  box.append(el('p', { class: 'note', text: 'Values are JSON. Unknown fields are stored unchanged; the daemon reads the new state on its next run.' }));
 }
 
 function renderSession() {
@@ -1742,7 +1846,7 @@ function renderSession() {
     state.status = null;
     state.board = null;
     showOnly('view-login');
-    toast('Abgemeldet. Das Gerät bleibt freigeschaltet.', 'ok');
+    toast('Signed out. The device stays approved.', 'ok');
   }));
 
   box.append(el('div', { class: 'card' },
@@ -1750,14 +1854,14 @@ function renderSession() {
       el('span', {}, 'Angemeldet als ', el('b', { text: email })),
       el('span', {}, 'Rolle ', el('b', { text: (state.status && state.status.role) || '—' }))),
     el('div', { class: 'row' }, out),
-    el('p', { class: 'note', text: 'Abmelden entfernt nur die Sitzung. Das Gerätetoken bleibt im Browser — dieses Gerät gilt weiter als freigeschaltet.' })));
+    el('p', { class: 'note', text: 'Signing out only removes the session. The device token stays in the browser — this device still counts as approved.' })));
 }
 
 /* ================================================================ Start */
 
 boot().catch((e) => {
   console.error(e);
-  toast(`Start fehlgeschlagen: ${e.message}`, 'bad');
+  toast(`Start failed: ${e.message}`, 'bad');
   showOnly('view-login');
 });
 
@@ -1771,7 +1875,7 @@ function applyBriefingLink(board) {
   if (url) {
     link.href = url;
     link.removeAttribute('hidden');
-    link.title = 'Morgenbriefing im lokalen Hub öffnen (nur im Heimnetz)';
+    link.title = 'Open the morning briefing in the local hub (home network only)';
   } else {
     link.setAttribute('hidden', 'hidden');
   }
@@ -1786,11 +1890,11 @@ function renderBlackboard(board) {
   const bb = board ? board.blackboard : null;
   const card = el('div', { class: 'tafel' });
   card.append(el('div', { class: 'tafel-head' },
-    el('span', { class: 'tafel-title', text: 'Was gerade wichtig ist' }),
+    el('span', { class: 'tafel-title', text: 'What matters right now' }),
     el('span', { class: 'tafel-meta', text: bb && bb.updated_at
-      ? 'Stand ' + fmtWhen(bb.updated_at) + ' · ' + (bb.updated_by || 'jarvis')
-      : 'noch nicht beschrieben' })));
-  card.append(el('div', { class: 'tafel-body', text: (bb && bb.body) || 'Noch keine Notiz auf der Tafel.' }));
+      ? 'as of ' + fmtWhen(bb.updated_at) + ' · ' + (bb.updated_by || 'jarvis')
+      : 'not described yet' })));
+  card.append(el('div', { class: 'tafel-body', text: (bb && bb.body) || 'No note on the board yet.' }));
 
   if (bb) {
     const area = el('textarea', { class: 'inp', rows: 4, maxlength: 900 });
@@ -1798,15 +1902,15 @@ function renderBlackboard(board) {
     const counter = el('span', { class: 'tafel-meta', text: (bb.body || '').length + '/900 Zeichen' });
     area.addEventListener('input', () => { counter.textContent = area.value.length + '/900 Zeichen'; });
     const msg = el('p', { class: 'msg' });
-    const btn = el('button', { class: 'btn', type: 'button', text: 'Tafel aktualisieren' });
+    const btn = el('button', { class: 'btn', type: 'button', text: 'Update board' });
     btn.addEventListener('click', () => guard(btn, async () => {
       const res = await rpc('set_blackboard', { p_body: area.value.trim() });
       if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
-      setMsg(msg, 'Tafel aktualisiert.', 'ok');
+      setMsg(msg, 'Board updated.', 'ok');
       refresh();
     }));
     card.append(el('details', { class: 'tafel-edit' },
-      el('summary', { text: 'Tafel bearbeiten' }),
+      el('summary', { text: 'Edit board' }),
       area,
       el('div', { class: 'row' }, counter),
       el('div', { class: 'row' }, btn),
@@ -1822,12 +1926,12 @@ function renderDigest() {
   clear(box);
   if (!d || !d.ok) return;
   const since = d.since ? fmtWhen(d.since) : 'deinem ersten Besuch';
-  const parts = [num(d.cards_done) + ' Karten erledigt', num(d.events) + ' Ereignisse'];
-  if (num(d.open_approvals)) parts.push(num(d.open_approvals) + ' Freigaben offen');
-  if (num(d.incidents)) parts.push(num(d.incidents) + ' Vorfälle');
+  const parts = [num(d.cards_done) + ' cards completed', num(d.events) + ' events'];
+  if (num(d.open_approvals)) parts.push(num(d.open_approvals) + ' approvals open');
+  if (num(d.incidents)) parts.push(num(d.incidents) + ' incidents');
   if (num(d.tokens)) parts.push(fmtTok(d.tokens) + ' Token');
   box.append(el('div', { class: 'digest' },
-    el('b', { text: 'Seit deinem letzten Besuch' }),
+    el('b', { text: 'Since your last visit' }),
     el('span', { text: ' (' + since + '): ' + parts.join(' · ') })));
 }
 
@@ -1862,9 +1966,9 @@ function analyticsExtras(box, board) {
   const maxTotal = Math.max(1, ...rows.map(([, v]) => v.total));
   const nameOf = (key) => (agents.find((a) => a.key === key) || {}).name || key;
 
-  box.append(el('h2', { class: 'sec', text: 'Wohin die Token gehen (7 Tage)' }));
+  box.append(el('h2', { class: 'sec', text: 'Where the tokens go (7 days)' }));
   if (!rows.length) {
-    box.append(emptyState('Noch keine Token-Aufschlüsselung — der Daemon schreibt sie stündlich.'));
+    box.append(emptyState('No token breakdown yet — the daemon writes it hourly.'));
   } else {
     const card = el('div', { class: 'card' });
     for (const [key, v] of rows) {
@@ -1898,9 +2002,9 @@ function analyticsExtras(box, board) {
   const days = [...new Set([...cells.keys()].map((k) => k.split('|')[0]))].sort().slice(-7);
   const maxCell = Math.max(1, ...[...cells.values()]);
 
-  box.append(el('h2', { class: 'sec', text: 'Wann gearbeitet wurde' }));
+  box.append(el('h2', { class: 'sec', text: 'When work happened' }));
   if (!days.length) {
-    box.append(emptyState('Noch keine Stundenwerte.'));
+    box.append(emptyState('No hourly values yet.'));
   } else {
     const card = el('div', { class: 'card' });
     const head = el('div', { class: 'heat-head' });
@@ -1922,7 +2026,7 @@ function analyticsExtras(box, board) {
       }
       card.append(row);
     }
-    card.append(el('p', { class: 'note', text: 'Helligkeit = Aktivität (Token und erledigte Karten je Stunde, Berliner Zeit). Der Daemon aktualisiert die Stundenwerte alle fünf Minuten.' }));
+    card.append(el('p', { class: 'note', text: 'Brightness = activity (tokens and completed cards per hour, Berlin time). The daemon refreshes hourly values every five minutes.' }));
     box.append(card);
   }
 
@@ -1930,7 +2034,7 @@ function analyticsExtras(box, board) {
   const antigravity = usage.filter((u) => u.service === 'antigravity');
   box.append(el('h2', { class: 'sec', text: 'Antigravity' }));
   if (!antigravity.length) {
-    box.append(emptyState('Noch keine Messung — der Daemon prüft einmal am Tag.'));
+    box.append(emptyState('No measurement yet — the daemon checks once a day.'));
   } else {
     const card = el('div', { class: 'card' });
     const pick = (metric) => antigravity.find((u) => u.metric === metric);
@@ -1938,10 +2042,10 @@ function analyticsExtras(box, board) {
     const logged = pick('runs_logged');
     const lastRun = pick('last_run');
     card.append(el('div', { class: 'kpis' },
-      kpi('Läufe heute', runsToday ? String(num(runsToday.value)) : '—', 'aus den CLI-Logs gezählt'),
-      kpi('Läufe insgesamt', logged ? String(num(logged.value)) : '—', 'Logdateien im Verzeichnis'),
+      kpi('Runs today', runsToday ? String(num(runsToday.value)) : '—', 'counted from CLI logs'),
+      kpi('Runs in total', logged ? String(num(logged.value)) : '—', 'log files in the directory'),
       kpi('Letzter Lauf', lastRun && lastRun.detail ? lastRun.detail : '—', 'Zeitpunkt des letzten Aufrufs')));
-    card.append(el('p', { class: 'note', text: 'Das Kontingent lässt sich über die CLI nicht auslesen. Statt einer geschätzten Zahl steht hier nur, was belegbar ist — geprüft einmal am Tag.' }));
+    card.append(el('p', { class: 'note', text: 'The quota cannot be read from the CLI. Instead of an estimate this shows only what is verifiable — checked once a day.' }));
     box.append(card);
   }
 }
@@ -1954,11 +2058,11 @@ function renderMessages(board) {
   const agents = board ? board.agents || [] : [];
 
   const card = el('div', { class: 'card' });
-  card.append(el('h2', { class: 'sec', text: 'Kontakt zwischen den Agenten' }));
-  card.append(el('p', { class: 'sub', text: 'Nachrichten landen beim nächsten Daemon-Lauf im Postfach des Zielprofils (INBOX.md) — dort lesen die Agenten sie zu Beginn ihrer Arbeit.' }));
+  card.append(el('h2', { class: 'sec', text: 'Contact between agents' }));
+  card.append(el('p', { class: 'sub', text: 'Messages land in the target profile inbox (INBOX.md) on the next daemon run — agents read them at the start of their work.' }));
 
   if (!msgs.length) {
-    card.append(emptyState('Noch keine Nachrichten.'));
+    card.append(emptyState('No messages yet.'));
   } else {
     card.append(el('div', {}, ...msgs.slice(0, 10).map((m) => el('div', { class: 'inc' },
       el('div', { class: 'tm', text: fmtTime.format(dateOf(m.ts) || new Date()) }),
@@ -1972,14 +2076,14 @@ function renderMessages(board) {
     const from = el('select', { class: 'inp' }, ...agents.map((a) => el('option', { value: a.key, text: a.name || a.key })));
     const to = el('select', { class: 'inp' }, ...agents.map((a) => el('option', { value: a.key, text: a.name || a.key })));
     to.value = 'jarvis';
-    const body = el('textarea', { class: 'inp', rows: 2, placeholder: 'Kurze Nachricht …' });
+    const body = el('textarea', { class: 'inp', rows: 2, placeholder: 'Short message …' });
     const msg = el('p', { class: 'msg' });
-    const btn = el('button', { class: 'btn acc', type: 'button', text: 'Nachricht senden' });
+    const btn = el('button', { class: 'btn acc', type: 'button', text: 'Send message' });
     btn.addEventListener('click', () => guard(btn, async () => {
       const res = await rpc('send_message', { p_from: from.value, p_to: to.value, p_body: body.value.trim() });
       if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
       body.value = '';
-      setMsg(msg, 'Eingereiht — wird beim nächsten Lauf zugestellt.', 'ok');
+      setMsg(msg, 'Queued — delivered on the next run.', 'ok');
       refresh();
     }));
     card.append(el('div', { class: 'row' }, from, el('span', { class: 'role', text: '→' }), to),
@@ -2037,7 +2141,7 @@ function wireVoice() {
       return;
     }
     if (!navigator.mediaDevices || !window.MediaRecorder) {
-      setStatus('Dieser Browser kann nicht aufnehmen.', 'bad');
+      setStatus('This browser cannot record.', 'bad');
       return;
     }
     try {
@@ -2053,7 +2157,7 @@ function wireVoice() {
         stopTicker();
         const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
         if (blob.size < 2000) { setStatus('Aufnahme zu kurz.', 'warn'); return; }
-        setStatus('Wird übertragen …', 'warn');
+        setStatus('Uploading …', 'warn');
         try {
           const b64 = await blobToBase64(blob);
           const res = await rpc('submit_voice', {
@@ -2062,18 +2166,18 @@ function wireVoice() {
             p_duration_ms: Date.now() - started,
           });
           if (!res || !res.ok) { setStatus(reasonText(res), 'bad'); return; }
-          setStatus('Angekommen — wird auf dem Mac transkribiert (dauert ein paar Sekunden).', 'ok');
+          setStatus('Received — transcribing on the Mac (takes a few seconds).', 'ok');
           setTimeout(refresh, 6000);
         } catch (err) {
-          setStatus('Übertragung fehlgeschlagen.', 'bad');
+          setStatus('Upload failed.', 'bad');
         }
       };
       recorder.start();
       btn.classList.add('rec');
       startTicker();
-      setStatus('Aufnahme läuft — nochmal tippen beendet sie.', 'warn');
+      setStatus('Recording — tap again to stop.', 'warn');
     } catch (err) {
-      setStatus('Mikrofon nicht freigegeben.', 'bad');
+      setStatus('Microphone not permitted.', 'bad');
     }
   });
 }

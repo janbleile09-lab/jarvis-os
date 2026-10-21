@@ -476,3 +476,21 @@ header.top .pills{margin-left:auto}
   }
   .toolbar{margin:10px 0 2px}
 }
+
+/* ---------------------------------------------------------------- Podcast (minimal) */
+
+.pod{display:inline-flex;align-items:center;gap:10px;min-width:170px}
+.pod-bar{
+  position:relative;flex:1 1 auto;height:3px;border-radius:2px;
+  background:#232b34;overflow:hidden;min-width:80px;
+}
+.pod-bar i{
+  display:block;height:100%;width:0;border-radius:2px;
+  background:linear-gradient(90deg,#63b3ff,#2f7fd4);
+  transition:width .5s ease;
+}
+.pod-text{font-size:12px;color:#8b95a5;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pod.done .pod-bar i{background:#2f9e5f}
+.pod.failed .pod-bar i{background:#c62f2f}
+.pod.failed .pod-text{color:#ff8080}
+.btn.plain[disabled]{opacity:.45;cursor:not-allowed}
