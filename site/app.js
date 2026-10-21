@@ -1030,7 +1030,7 @@ function renderOverview(board) {
           el('div', { class: 'role', text: agent.role || 'ohne Rolle' })),
         el('span', { class: `st ${st.cls}`, text: st.label })),
       el('div', { class: 'task', text: active ? active.title : 'Keine offene Karte' }),
-      el('div', {
+      liveLine(active) || el('div', {
         class: 'step',
         text: active
           ? [active.current_step, active.detail].filter(Boolean).join(' · ') || 'ohne Schrittangabe'
@@ -1063,6 +1063,16 @@ function focusInstruction(agentKey) {
 }
 
 /* ================================================================ 02 Live-Board */
+
+
+function liveLine(t) {
+  if (!t || !t.live_note) return null;
+  return el('div', { class: 'live' },
+    el('span', { class: 'dot live-dot' }),
+    el('span', { text: t.live_note }),
+    t.subagents ? el('b', { text: `${t.subagents} subagent${t.subagents === 1 ? '' : 's'}` }) : null,
+    el('span', { class: 'ago', text: fmtAge(t.live_at) }));
+}
 
 function renderLive(board) {
   const box = $('#live-body');
@@ -1155,6 +1165,7 @@ function renderLive(board) {
         ? el('div', {}, ...current.slice(0, 6).map((t) => el('div', { style: { padding: '7px 0', borderTop: '1px solid #1e242c' } },
           el('div', { class: 'task', text: t.title || 'ohne Titel' }),
           el('div', { class: 'step', text: [TASK_STATUS[t.status] || t.status, t.current_step, `as of ${fmtAge(t.updated_at)}`].filter(Boolean).join(' · ') }),
+          liveLine(t),
           el('div', { class: 'bar' }, el('i', {
             style: { width: `${Math.max(2, Math.min(100, num(t.progress)))}%` },
             class: t.status === 'blocked' ? 'w' : null,

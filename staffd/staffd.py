@@ -1188,6 +1188,191 @@ def task_podcast(sb, state):
         return {"podcast_started": 0, "podcast_error": _short(exc, 120)}
 
 
+
+def kanban_show(task_id):
+    """Eine Karte im Detail (Runs, Sitzungs-ID). Gibt {} bei Fehlern."""
+    try:
+        proc = subprocess.run(["hermes", "kanban", "--board", KANBAN_BOARD, "show", str(task_id), "--json"],
+                              capture_output=True, text=True, timeout=60)
+        if proc.returncode != 0:
+            return {}
+        return json.loads(proc.stdout or "{}")
+    except Exception as exc:
+        log("kanban_show_failed id=%s err=%s" % (task_id, _short(exc, 120)))
+        return {}
+
+
+def worker_sessions(agent_key):
+    """Sitzungen, an denen gerade ein Arbeiter rechnet (worker_executions.status='running')."""
+    import sqlite3
+
+    path = _state_db_path(agent_key)
+    if not os.path.exists(path):
+        return []
+    try:
+        conn = sqlite3.connect("file:%s?mode=ro" % urllib.parse.quote(path), uri=True, timeout=5)
+        conn.execute("PRAGMA query_only = ON")
+        rows = [r[0] for r in conn.execute(
+            "select session_id from worker_executions where status = 'running'")]
+        conn.close()
+        return rows
+    except Exception:
+        return []
+
+
+def find_worker_session(agent_key, task_id, candidates):
+    """Welche Sitzung gehoert zu dieser Karte?
+
+    `task.session_id` ist beim Start noch leer, deshalb wird die Karte ueber ihren
+    Vorkommenstext in den Nachrichten der laufenden Arbeiter-Sitzungen gesucht.
+    """
+    import sqlite3
+
+    if not task_id:
+        return None
+    path = _state_db_path(agent_key)
+    if not os.path.exists(path) or not candidates:
+        return None
+    try:
+        conn = sqlite3.connect("file:%s?mode=ro" % urllib.parse.quote(path), uri=True, timeout=5)
+        conn.execute("PRAGMA query_only = ON")
+        marks = ",".join("?" for _ in candidates)
+        row = conn.execute(
+            "select session_id from messages where session_id in (%s)"
+            " and content like ? order by timestamp desc limit 1" % marks,
+            tuple(candidates) + ("%" + str(task_id) + "%",)).fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+def _short_output(text):
+    """Erste sinnvolle Zeile einer Werkzeug-Ausgabe, ohne JSON-Gerippe."""
+    text = (text or "").strip()
+    for line in text.replace("\\n", "\n").splitlines():
+        line = line.strip().strip("{}[],").strip()
+        if line.startswith('"output":'):
+            line = line.split(":", 1)[1].strip().strip('",')
+        if len(line) > 3:
+            return line[:150]
+    return text[:150]
+
+
+def tool_call_hint(calls):
+    """Aus dem tool_calls-JSON eine lesbare Zeile machen: Werkzeug + wichtigstes Argument."""
+    try:
+        data = json.loads(calls)
+        if not isinstance(data, list) or not data:
+            return None
+        fn = (data[0] or {}).get("function") or {}
+        name = fn.get("name") or "tool"
+        args = json.loads(fn.get("arguments") or "{}")
+        for key in ("command", "path", "query", "prompt", "text", "url", "pattern"):
+            if args.get(key):
+                value = " ".join(str(args[key]).split())
+                return "%s: %s" % (name, value[:150])
+        return name
+    except Exception:
+        return None
+
+
+def session_activity(agent_key, session_id):
+    """Was macht diese Sitzung gerade? Letzte Aktion + Zahl laufender Unteragenten."""
+    import sqlite3
+
+    if not session_id:
+        return None, None, 0
+    path = _state_db_path(agent_key)
+    if not os.path.exists(path):
+        return None, None, 0
+    note = None
+    ts = None
+    subs = 0
+    conn = None
+    try:
+        conn = sqlite3.connect("file:%s?mode=ro" % urllib.parse.quote(path), uri=True, timeout=5)
+        conn.execute("PRAGMA query_only = ON")
+        rows = conn.execute(
+            "select role, tool_name, content, timestamp, tool_calls from messages"
+            " where session_id = ? order by timestamp desc, rowid desc limit 8", (session_id,)).fetchall()
+        for role, tool, content, stamp, calls in rows:
+            text = (content or "").strip()
+            # Am aussagekraeftigsten ist der Aufruf selbst: "terminal: python3 tools/x.py".
+            if role == "assistant" and calls:
+                hint = tool_call_hint(calls)
+                if hint:
+                    note, ts = hint, stamp
+                    break
+            if role == "assistant" and text:
+                note, ts = text.replace("\n", " ")[:180], stamp
+                break
+            if role == "tool" and tool:
+                note, ts = "%s: %s" % (tool, _short_output(text)), stamp
+                break
+        try:
+            subs = conn.execute(
+                "select count(*) from async_delegations where parent_session_id = ?"
+                " and state not in ('completed','failed','cancelled','expired')", (session_id,)).fetchone()[0]
+        except Exception:
+            subs = 0
+    except Exception as exc:
+        log("session_activity_failed session=%s err=%s" % (session_id, _short(exc, 120)))
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    return note, ts, int(subs or 0)
+
+
+def task_live(sb, cards):
+    """Live-Spur je laufender Karte: letzter Schritt des Arbeiters und Zahl der Unteragenten.
+
+    Ohne diese Spur zeigt das Board nur "laeuft" — Jan will sehen, WAS gerade passiert.
+    Quelle ist die Sitzung des Arbeiters (state.db/messages), nicht eine Schaetzung.
+    """
+    running = [c for c in cards if str(c.get("status") or "").lower() == "running"]
+    updated = 0
+    for card in running:
+        kanban_id = str(card.get("id") or "")
+        if not kanban_id:
+            continue
+        detail = kanban_show(kanban_id)
+        task = detail.get("task") or {}
+        runs = detail.get("runs") or []
+        run = runs[0] if runs else {}
+        agent_key = board_key(card.get("assignee")) or "jarvis"
+        session_id = task.get("session_id")
+        if not session_id:
+            session_id = find_worker_session(agent_key, kanban_id, worker_sessions(agent_key))
+        note, stamp, subs = session_activity(agent_key, session_id)
+        if not note:
+            note = "arbeitet (noch keine Ausgabe)"
+        payload = {
+            "live_note": note[:400],
+            "live_at": iso(datetime.now(timezone.utc)),
+            "run_id": run.get("id"),
+            "session_id": session_id,
+            "subagents": subs,
+            "current_step": note[:120],
+        }
+        sb.update("tasks", "kanban_id=eq." + kanban_id, payload)
+        updated += 1
+
+    # Karten, die nicht mehr laufen, duerfen keine alte Live-Zeile behalten.
+    stale = sb.select("tasks", "select=id,kanban_id,live_note&live_note=not.is.null") or []
+    running_ids = {str(c.get("id")) for c in running}
+    cleared = 0
+    for row in stale:
+        if str(row.get("kanban_id")) not in running_ids:
+            sb.update("tasks", "id=eq." + str(row.get("id")),
+                      {"live_note": None, "live_at": None, "subagents": 0})
+            cleared += 1
+    return {"live_cards": updated, "live_cleared": cleared}
+
+
 # --------------------------------------------------------------------------- Aufgabe 9
 
 VOICE_TMP = os.path.expanduser("~/.jarvis-os/tmp")
@@ -1413,6 +1598,8 @@ def run_once(sb, state, force_all=True):
     step("approvals", task_approvals, sb)
     mirror = step("kanban", task_mirror_kanban, sb, {agent.get("key") for agent in agents})
     cards = (mirror or {}).get("cards", [])
+
+    step("live", task_live, sb, cards)
 
     if agents:
         step("heartbeats", task_heartbeats, sb, agents, cards, rate)

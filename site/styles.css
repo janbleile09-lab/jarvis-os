@@ -494,3 +494,17 @@ header.top .pills{margin-left:auto}
 .pod.failed .pod-bar i{background:#c62f2f}
 .pod.failed .pod-text{color:#ff8080}
 .btn.plain[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ---------------------------------------------------------------- Live-Spur */
+
+.live{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;margin-top:6px;
+      font-size:12.5px;line-height:1.45;color:#c6cfda;background:#131920;
+      border-left:2px solid #35d07f;border-radius:0 6px 6px 0;padding:6px 9px}
+.live b{color:#eef3f8;font-weight:650}
+.live .ago{color:#7d8794;font-size:11.5px;white-space:nowrap}
+.dot.live-dot{background:#35d07f;box-shadow:0 0 0 0 rgba(53,208,127,.6);animation:pulse-dot 1.8s infinite}
+@keyframes pulse-dot{
+  0%{box-shadow:0 0 0 0 rgba(53,208,127,.55)}
+  70%{box-shadow:0 0 0 6px rgba(53,208,127,0)}
+  100%{box-shadow:0 0 0 0 rgba(53,208,127,0)}
+}
