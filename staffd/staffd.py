@@ -17,8 +17,10 @@ Regeln, die dieser Daemon einhaelt:
     weiter mit der naechsten Aufgabe.
 """
 
+import base64
 import json
 import os
+import re
 import shutil
 import ssl
 import subprocess
@@ -429,12 +431,10 @@ def kanban_list(board=KANBAN_BOARD):
 
 def kanban_create(board, title, body, assignee):
     """Legt eine Karte an und gibt ihre ID zurueck."""
-    args = [
-        "kanban", "--board", board, "create",
-        "--title", title[:200],
-        "--body", body,
-        "--json",
-    ]
+    # Achtung: der Titel ist ein POSITIONAL argument, kein --title-Flag.
+    args = ["kanban", "--board", board, "create", title[:200], "--json"]
+    if body:
+        args += ["--body", body]
     if assignee:
         args += ["--assignee", assignee]
     code, out, err = run_hermes(args, timeout=150)
@@ -507,6 +507,37 @@ def tokens_between(agent_key, start_ts, end_ts):
 
 
 # --------------------------------------------------------------------------- Helfer
+
+def token_breakdown(agent_key, start_ts, end_ts):
+    """(input, output, cache, sessions) aus der Session-DB des Profils."""
+    import sqlite3
+
+    path = _state_db_path(agent_key)
+    if not os.path.exists(path):
+        return 0, 0, 0, 0
+    uri = "file:%s?mode=ro" % urllib.parse.quote(path)
+    try:
+        conn = sqlite3.connect(uri, uri=True, timeout=5)
+    except Exception:
+        return 0, 0, 0, 0
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        row = conn.execute(
+            "select coalesce(sum(coalesce(input_tokens,0)),0),"
+            " coalesce(sum(coalesce(output_tokens,0)),0),"
+            " coalesce(sum(coalesce(cache_read_tokens,0)+coalesce(cache_write_tokens,0)),0),"
+            " count(*) from sessions where started_at >= ? and started_at < ?",
+            (start_ts, end_ts),
+        ).fetchone()
+        return int(row[0] or 0), int(row[1] or 0), int(row[2] or 0), int(row[3] or 0)
+    except Exception:
+        return 0, 0, 0, 0
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
 
 def incident(sb, severity, source, summary, action_taken=None, needs_jan=False):
     row = {
@@ -630,7 +661,8 @@ def task_approvals(sb):
     rows = sb.select(
         "approvals",
         "status=eq.approved&applied_at=is.null&select=id,requested_by,kind,title,question,"
-        "recommendation,cost_tokens,cost_eur,risk,expires_at,decided_at&order=decided_at.asc&limit=10",
+        "recommendation,cost_tokens,cost_eur,risk,expires_at,decided_at,estimate_minutes,"
+        "after_task_title&order=decided_at.asc&limit=10",
     )
     applied = 0
     cards = 0
@@ -665,6 +697,22 @@ def task_approvals(sb):
                     sb, requested_by, "approval",
                     "Freigabe %s ausgefuehrt: %d Subagent-Karte(n)" % (approval_id, count),
                 )
+            elif kind == "followup":
+                minutes = row.get("estimate_minutes") or 45
+                body = "\n".join(
+                    part for part in [
+                        "Freigegebene Folgearbeit (Freigabe %s)." % approval_id,
+                        "Nach: %s" % (row.get("after_task_title") or "-"),
+                        "Vorschlag: %s" % (row.get("question") or row.get("title") or "-"),
+                        "Empfehlung: %s" % (row.get("recommendation") or "-"),
+                        "Zeitschaetzung: %s Minuten. Budget: %s EUR." % (minutes, row.get("cost_eur") or 0),
+                    ] if part
+                )
+                kanban_create(KANBAN_BOARD, (row.get("title") or "Folgearbeit")[:80], body, requested_by)
+                cards += 1
+                sb.rpc("mark_approval_applied", {"p_id": approval_id})
+                event(sb, requested_by, "followup",
+                      "Folgearbeit freigegeben (%s min): %s" % (minutes, row.get("title")))
             else:
                 event(
                     sb, requested_by, "approval",
@@ -981,11 +1029,17 @@ def task_metrics(sb, agents, cards, rate):
     for agent in agents:
         key = agent.get("key")
         tokens, source_ok = tokens_between(key, start_ts, end_ts)
+        tin, tout, tcache, sessions = token_breakdown(key, start_ts, end_ts)
         rows.append({
             "hour": hour_iso,
             "agent_key": key,
             "tasks_done": int(done_by_agent.get(key, 0)),
             "tokens": int(tokens),
+            "tokens_in": int(tin),
+            "tokens_out": int(tout),
+            "tokens_cache": int(tcache),
+            "sessions": int(sessions),
+            "events": 0,
             "cost_eur": round(cost_eur(tokens, rate), 3),
             # Kanban liefert keinen "blockiert seit"-Zeitstempel; ohne echte Quelle
             # wird hier nichts erfunden, die Spalte bleibt 0.
@@ -997,6 +1051,217 @@ def task_metrics(sb, agents, cards, rate):
         row.pop("meta_source_missing", None)
     sb.insert("metrics_hourly", rows, on_conflict="hour,agent_key", merge=True)
     return {"metrics_rows": len(rows), "metrics_hour": hour_iso}
+
+
+
+
+def hourly_series(agent_key, start_ts):
+    """Stundenwerte eines Profils aus der Session-DB: [(hour_ts, in, out, cache, total, sessions)]."""
+    import sqlite3
+
+    path = _state_db_path(agent_key)
+    if not os.path.exists(path):
+        return []
+    uri = "file:%s?mode=ro" % urllib.parse.quote(path)
+    try:
+        conn = sqlite3.connect(uri, uri=True, timeout=10)
+    except Exception:
+        return []
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        rows = conn.execute(
+            "select cast(started_at / 3600 as integer) * 3600 as h,"
+            " coalesce(sum(coalesce(input_tokens,0)),0),"
+            " coalesce(sum(coalesce(output_tokens,0)),0),"
+            " coalesce(sum(coalesce(cache_read_tokens,0)+coalesce(cache_write_tokens,0)),0),"
+            " coalesce(sum(coalesce(input_tokens,0)+coalesce(output_tokens,0)"
+            "   +coalesce(cache_read_tokens,0)+coalesce(cache_write_tokens,0)"
+            "   +coalesce(reasoning_tokens,0)),0),"
+            " count(*)"
+            " from sessions where started_at >= ? group by h order by h",
+            (start_ts,),
+        ).fetchall()
+        return [(int(r[0]), int(r[1]), int(r[2]), int(r[3]), int(r[4]), int(r[5])) for r in rows]
+    except Exception:
+        return []
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def task_backfill_metrics(sb, state):
+    """Einmalig die Stundenwerte der letzten 7 Tage nachtragen.
+
+    Ohne Nachtrag zeigen die Diagramme nur die Stunden seit dem ersten Daemon-Lauf.
+    Laeuft genau einmal (Flag im Zustand), danach nie wieder.
+    """
+    if state.get("metrics_backfilled"):
+        return {"backfilled": False}
+    rate = rate_eur_per_mtok(sb)
+    start = time.time() - 7 * 24 * 3600
+    agents = sb.select("agents", "select=key") or []
+    rows = []
+    for agent in agents:
+        key = agent.get("key")
+        for hour_ts, tin, tout, tcache, total, sessions in hourly_series(key, start):
+            rows.append({
+                "hour": iso(datetime.fromtimestamp(hour_ts, timezone.utc)),
+                "agent_key": key,
+                "tasks_done": 0,
+                "tokens": total,
+                "tokens_in": tin,
+                "tokens_out": tout,
+                "tokens_cache": tcache,
+                "sessions": sessions,
+                "events": 0,
+                "cost_eur": round(cost_eur(total, rate), 3),
+            })
+    written = 0
+    for i in range(0, len(rows), 200):
+        chunk = rows[i:i + 200]
+        if chunk:
+            sb.insert("metrics_hourly", chunk, on_conflict="hour,agent_key", merge=True)
+            written += len(chunk)
+    state.set("metrics_backfilled", True)
+    log("metrics backfill: %s Zeilen (7 Tage)" % written)
+    return {"backfilled": True, "metrics_backfilled_rows": written}
+
+
+# --------------------------------------------------------------------------- Aufgabe 9
+
+VOICE_TMP = os.path.expanduser("~/.jarvis-os/tmp")
+
+
+def task_voice(sb):
+    """Sprachnachrichten lokal transkribieren (Apple SpeechAnalyzer) und als Anweisung ablegen.
+
+    Der Ton verlaesst den Mac nicht: das Audio kommt als base64 in der Datenbank an,
+    wird hier in eine temporaere Datei geschrieben, mit ~/.hermes/bin/apple_stt
+    (on-device) transkribiert und danach geloescht.
+    """
+    rows = sb.select(
+        "voice_notes",
+        "status=eq.queued&select=id,mime,duration_ms,audio&order=created_at.asc&limit=2",
+    )
+    done = failed = 0
+    if not rows:
+        return {"voice_done": 0, "voice_failed": 0}
+    os.makedirs(VOICE_TMP, exist_ok=True)
+    stt = os.path.expanduser("~/.hermes/bin/apple_stt")
+    for row in rows:
+        vid = row.get("id")
+        path = None
+        try:
+            sb.update("voice_notes", "id=eq.%s" % vid, {"status": "transcribing"})
+            mime = (row.get("mime") or "").lower()
+            suffix = ".webm"
+            for needle, ext in (("mp4", ".m4a"), ("m4a", ".m4a"), ("wav", ".wav"),
+                                ("ogg", ".ogg"), ("mpeg", ".mp3")):
+                if needle in mime:
+                    suffix = ext
+                    break
+            raw = base64.b64decode(row.get("audio") or "")
+            path = os.path.join(VOICE_TMP, "voice_%s%s" % (vid, suffix))
+            with open(path, "wb") as fh:
+                fh.write(raw)
+            if not os.path.exists(stt):
+                raise RuntimeError("apple_stt fehlt: %s" % stt)
+            proc = subprocess.run([stt, path, "de-DE"], capture_output=True, text=True, timeout=240)
+            text = (proc.stdout or "").strip()
+            if proc.returncode != 0 or not text:
+                raise RuntimeError((proc.stderr or "kein Transkript")[:200])
+            sb.update("voice_notes", "id=eq.%s" % vid, {
+                "status": "done", "transcript": text, "audio": None,
+                "processed_at": iso(datetime.now(timezone.utc)),
+            })
+            sb.insert("instructions", [{"target": "jarvis", "body": "Sprachbefehl: " + text}])
+            event(sb, "jarvis", "voice", "Sprachbefehl transkribiert: " + text[:160])
+            done += 1
+        except Exception as exc:
+            failed += 1
+            log("voice_failed id=%s err=%s" % (vid, _short(exc, 200)))
+            try:
+                sb.update("voice_notes", "id=eq.%s" % vid,
+                          {"status": "failed", "error": _short(exc, 200)})
+            except Exception:
+                pass
+        finally:
+            if path and os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except Exception:
+                    pass
+    return {"voice_done": done, "voice_failed": failed}
+
+
+# --------------------------------------------------------------------------- Aufgabe 10
+
+def task_messages(sb):
+    """Nachrichten zwischen Agenten zustellen: als Eintrag im Postfach des Zielprofils."""
+    rows = sb.select(
+        "messages",
+        "delivered_at=is.null&select=id,from_agent,to_agent,body,ts&order=ts.asc&limit=20",
+    )
+    delivered = 0
+    for row in rows:
+        target = row.get("to_agent")
+        path = os.path.expanduser("~/.hermes/profiles/%s/INBOX.md" % target)
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write("\n## Nachricht von %s · %s\n\n%s\n" %
+                         (row.get("from_agent"), (row.get("ts") or "")[:16], row.get("body")))
+            sb.update("messages", "id=eq.%s" % row["id"],
+                      {"delivered_at": iso(datetime.now(timezone.utc))})
+            delivered += 1
+        except Exception as exc:
+            log("message_failed id=%s err=%s" % (row.get("id"), _short(exc, 160)))
+    return {"messages_delivered": delivered}
+
+
+# --------------------------------------------------------------------------- Aufgabe 11
+
+def task_service_usage(sb, state):
+    """Einmal am Tag: Nutzung von Antigravity aus den CLI-Logs zaehlen.
+
+    Ein Kontingent ist ueber die CLI nicht auslesbar. Statt eine Zahl zu erfinden,
+    wird die Anzahl der Laeufe gezaehlt und im Detail vermerkt, dass das Limit
+    nicht abrufbar ist.
+    """
+    last = float(state.get("last_usage_check") or 0)
+    if time.time() - last < 20 * 3600:
+        return {"usage_checked": False}
+    log_dir = os.path.expanduser("~/.gemini/antigravity-cli/log")
+    today = datetime.now().strftime("%Y%m%d")
+    runs_today = 0
+    runs_total = 0
+    last_run = None
+    if os.path.isdir(log_dir):
+        for name in os.listdir(log_dir):
+            match = re.match(r"cli-(\d{8})_(\d{6})", name)
+            if not match:
+                continue
+            runs_total += 1
+            if match.group(1) == today:
+                runs_today += 1
+            stamp = match.group(1) + match.group(2)
+            if last_run is None or stamp > last_run:
+                last_run = stamp
+    rows = [
+        {"service": "antigravity", "metric": "runs_today", "value": runs_today,
+         "detail": "Laeufe heute laut CLI-Logs; Kontingent nicht auslesbar"},
+        {"service": "antigravity", "metric": "runs_logged", "value": runs_total,
+         "detail": "Logdateien insgesamt"},
+    ]
+    if last_run:
+        rows.append({"service": "antigravity", "metric": "last_run", "value": None,
+                     "detail": "%s-%s-%s %s:%s" % (last_run[0:4], last_run[4:6], last_run[6:8],
+                                                   last_run[8:10], last_run[10:12])})
+    sb.insert("service_usage", rows)
+    state.set("last_usage_check", time.time())
+    return {"usage_checked": True, "antigravity_runs_today": runs_today}
 
 
 # --------------------------------------------------------------------------- Lauf
@@ -1042,6 +1307,10 @@ def run_once(sb, state, force_all=True):
     rate = rate_eur_per_mtok(sb)
 
     step("expire_approvals", task_expire_approvals, sb)
+    step("backfill", task_backfill_metrics, sb, state)
+    step("voice", task_voice, sb)
+    step("messages", task_messages, sb)
+    step("usage", task_service_usage, sb, state)
     step("instructions", task_instructions, sb)
     step("approvals", task_approvals, sb)
     mirror = step("kanban", task_mirror_kanban, sb, {agent.get("key") for agent in agents})

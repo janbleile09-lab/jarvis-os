@@ -850,6 +850,10 @@ function renderOverview(board) {
   const agents = board ? board.agents || [] : [];
   const tasks = board ? board.tasks || [] : [];
 
+  renderBlackboard(board);
+  if (!state.visitLoaded) { state.visitLoaded = true; loadVisit(); } else { renderDigest(); }
+  applyBriefingLink(board);
+
   /* --- Organigramm --- */
   clear(orgBox);
   if (!agents.length) {
@@ -1069,6 +1073,7 @@ function renderLive(board) {
     wrap.append(card);
   }
   box.append(wrap);
+  renderMessages(board);
 }
 
 /* ================================================================ 03 Freigaben */
@@ -1169,7 +1174,10 @@ function renderApprovals(board) {
         el('span', {}, 'Standard ', el('b', {
           text: ap.default_decision === 'approve' ? 'genehmigen' : ap.default_decision === 'deny' ? 'ablehnen' : '—',
         })),
-        el('span', {}, 'gestellt ', el('b', { text: fmtAge(ap.created_at) }))),
+        el('span', {}, 'gestellt ', el('b', { text: fmtAge(ap.created_at) })),
+        ap.estimate_minutes ? el('span', {}, 'Dauer ', el('b', { text: `${ap.estimate_minutes} min` })) : null),
+      ap.kind === 'followup' && ap.after_task_title
+        ? el('div', { class: 'rec', text: `Nach erledigter Arbeit: ${ap.after_task_title}` }) : null,
       ap.recommendation ? el('div', { class: 'rec', text: `Empfehlung: ${ap.recommendation}` }) : null,
       noteWrap,
       el('div', { class: 'acts' },
@@ -1334,6 +1342,8 @@ function renderAnalytics(board) {
           el('th', { class: 'num', text: 'blockiert' }), el('th', { text: 'Status' }))),
         el('tbody', {}, ...rows)))));
   }
+
+  analyticsExtras(box, board);
 }
 
 function kpi(label, value, sub) {
@@ -1749,3 +1759,303 @@ boot().catch((e) => {
   toast(`Start fehlgeschlagen: ${e.message}`, 'bad');
   showOnly('view-login');
 });
+
+/* ================================================================ Tafel, Besuch, Sprachbefehl */
+
+function applyBriefingLink(board) {
+  const link = $('#briefing-link');
+  if (!link) return;
+  const cfg = board && board.settings && board.settings.briefing_url;
+  const url = cfg && cfg.url ? cfg.url : null;
+  if (url) {
+    link.href = url;
+    link.removeAttribute('hidden');
+    link.title = 'Morgenbriefing im lokalen Hub öffnen (nur im Heimnetz)';
+  } else {
+    link.setAttribute('hidden', 'hidden');
+  }
+  wireVoice();
+}
+
+function renderBlackboard(board) {
+  const box = $('#overview-blackboard');
+  if (!box) return;
+  clear(box);
+
+  const bb = board ? board.blackboard : null;
+  const card = el('div', { class: 'tafel' });
+  card.append(el('div', { class: 'tafel-head' },
+    el('span', { class: 'tafel-title', text: 'Was gerade wichtig ist' }),
+    el('span', { class: 'tafel-meta', text: bb && bb.updated_at
+      ? 'Stand ' + fmtWhen(bb.updated_at) + ' · ' + (bb.updated_by || 'jarvis')
+      : 'noch nicht beschrieben' })));
+  card.append(el('div', { class: 'tafel-body', text: (bb && bb.body) || 'Noch keine Notiz auf der Tafel.' }));
+
+  if (bb) {
+    const area = el('textarea', { class: 'inp', rows: 4, maxlength: 900 });
+    area.value = bb.body || '';
+    const counter = el('span', { class: 'tafel-meta', text: (bb.body || '').length + '/900 Zeichen' });
+    area.addEventListener('input', () => { counter.textContent = area.value.length + '/900 Zeichen'; });
+    const msg = el('p', { class: 'msg' });
+    const btn = el('button', { class: 'btn', type: 'button', text: 'Tafel aktualisieren' });
+    btn.addEventListener('click', () => guard(btn, async () => {
+      const res = await rpc('set_blackboard', { p_body: area.value.trim() });
+      if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
+      setMsg(msg, 'Tafel aktualisiert.', 'ok');
+      refresh();
+    }));
+    card.append(el('details', { class: 'tafel-edit' },
+      el('summary', { text: 'Tafel bearbeiten' }),
+      area,
+      el('div', { class: 'row' }, counter),
+      el('div', { class: 'row' }, btn),
+      msg));
+  }
+  box.append(card);
+}
+
+function renderDigest() {
+  const box = $('#overview-digest');
+  if (!box) return;
+  const d = state.visit;
+  clear(box);
+  if (!d || !d.ok) return;
+  const since = d.since ? fmtWhen(d.since) : 'deinem ersten Besuch';
+  const parts = [num(d.cards_done) + ' Karten erledigt', num(d.events) + ' Ereignisse'];
+  if (num(d.open_approvals)) parts.push(num(d.open_approvals) + ' Freigaben offen');
+  if (num(d.incidents)) parts.push(num(d.incidents) + ' Vorfälle');
+  if (num(d.tokens)) parts.push(fmtTok(d.tokens) + ' Token');
+  box.append(el('div', { class: 'digest' },
+    el('b', { text: 'Seit deinem letzten Besuch' }),
+    el('span', { text: ' (' + since + '): ' + parts.join(' · ') })));
+}
+
+async function loadVisit() {
+  try {
+    const res = await rpc('visit', {});
+    state.visit = res || null;
+  } catch (err) {
+    state.visit = null;
+  }
+  renderDigest();
+}
+
+function analyticsExtras(box, board) {
+  if (!board) return;
+  const metrics = board.metrics || [];
+  const agents = board.agents || [];
+  const usage = board.service_usage || [];
+
+  /* --- Token je Agent, aufgeschlüsselt --- */
+  const perAgent = new Map();
+  for (const m of metrics) {
+    const key = m.agent_key || '—';
+    const cur = perAgent.get(key) || { input: 0, output: 0, cache: 0, total: 0 };
+    cur.input += num(m.tokens_in);
+    cur.output += num(m.tokens_out);
+    cur.cache += num(m.tokens_cache);
+    cur.total += num(m.tokens) || (num(m.tokens_in) + num(m.tokens_out) + num(m.tokens_cache));
+    perAgent.set(key, cur);
+  }
+  const rows = [...perAgent.entries()].filter(([, v]) => v.total > 0).sort((a, b) => b[1].total - a[1].total);
+  const maxTotal = Math.max(1, ...rows.map(([, v]) => v.total));
+  const nameOf = (key) => (agents.find((a) => a.key === key) || {}).name || key;
+
+  box.append(el('h2', { class: 'sec', text: 'Wohin die Token gehen (7 Tage)' }));
+  if (!rows.length) {
+    box.append(emptyState('Noch keine Token-Aufschlüsselung — der Daemon schreibt sie stündlich.'));
+  } else {
+    const card = el('div', { class: 'card' });
+    for (const [key, v] of rows) {
+      const width = (part) => Math.max(part > 0 ? 1 : 0, (part / maxTotal) * 100);
+      card.append(el('div', { class: 'tokrow' },
+        el('div', { class: 'tokname', text: nameOf(key) }),
+        el('div', { class: 'tokbar' },
+          el('i', { class: 't-in', style: { width: width(v.input) + '%' }, title: 'Eingabe' }),
+          el('i', { class: 't-out', style: { width: width(v.output) + '%' }, title: 'Ausgabe' }),
+          el('i', { class: 't-cache', style: { width: width(v.cache) + '%' }, title: 'Cache' })),
+        el('div', { class: 'tokval', text: fmtTok(v.total) })));
+    }
+    card.append(el('div', { class: 'legend' },
+      el('span', {}, el('i', { class: 't-in' }), ' Eingabe'),
+      el('span', {}, el('i', { class: 't-out' }), ' Ausgabe'),
+      el('span', {}, el('i', { class: 't-cache' }), ' Cache (billig)')));
+    box.append(card);
+  }
+
+  /* --- Aktivität je Stunde und Tag --- */
+  const cells = new Map();
+  for (const m of metrics) {
+    const d = dateOf(m.hour);
+    if (!d) continue;
+    const day = berlinDay.format(d);
+    const hour = Number(berlinHour.format(d));
+    const key = day + '|' + hour;
+    const prev = cells.get(key) || 0;
+    cells.set(key, prev + (num(m.tokens) || 0) + num(m.tasks_done) * 5000);
+  }
+  const days = [...new Set([...cells.keys()].map((k) => k.split('|')[0]))].sort().slice(-7);
+  const maxCell = Math.max(1, ...[...cells.values()]);
+
+  box.append(el('h2', { class: 'sec', text: 'Wann gearbeitet wurde' }));
+  if (!days.length) {
+    box.append(emptyState('Noch keine Stundenwerte.'));
+  } else {
+    const card = el('div', { class: 'card' });
+    const head = el('div', { class: 'heat-head' });
+    head.append(el('span', { class: 'heat-label', text: '' }));
+    for (let h = 0; h < 24; h += 3) head.append(el('span', { class: 'heat-tick', text: h + 'h' }));
+    card.append(head);
+    for (const day of days) {
+      const row = el('div', { class: 'heat-row' });
+      row.append(el('span', { class: 'heat-label', text: fmtDay.format(new Date(day + 'T12:00:00')) }));
+      for (let h = 0; h < 24; h += 1) {
+        const value = cells.get(day + '|' + h) || 0;
+        const alpha = value ? 0.12 + 0.88 * (value / maxCell) : 0;
+        const cell = el('i', {
+          class: 'heat-cell',
+          title: day + ' ' + String(h).padStart(2, '0') + ':00 — ' + fmtTok(value),
+        });
+        cell.style.background = value ? 'rgba(77,163,255,' + alpha.toFixed(2) + ')' : 'rgba(255,255,255,0.04)';
+        row.append(cell);
+      }
+      card.append(row);
+    }
+    card.append(el('p', { class: 'note', text: 'Helligkeit = Aktivität (Token und erledigte Karten je Stunde, Berliner Zeit). Der Daemon aktualisiert die Stundenwerte alle fünf Minuten.' }));
+    box.append(card);
+  }
+
+  /* --- Fremddienst Antigravity --- */
+  const antigravity = usage.filter((u) => u.service === 'antigravity');
+  box.append(el('h2', { class: 'sec', text: 'Antigravity' }));
+  if (!antigravity.length) {
+    box.append(emptyState('Noch keine Messung — der Daemon prüft einmal am Tag.'));
+  } else {
+    const card = el('div', { class: 'card' });
+    const pick = (metric) => antigravity.find((u) => u.metric === metric);
+    const runsToday = pick('runs_today');
+    const logged = pick('runs_logged');
+    const lastRun = pick('last_run');
+    card.append(el('div', { class: 'kpis' },
+      kpi('Läufe heute', runsToday ? String(num(runsToday.value)) : '—', 'aus den CLI-Logs gezählt'),
+      kpi('Läufe insgesamt', logged ? String(num(logged.value)) : '—', 'Logdateien im Verzeichnis'),
+      kpi('Letzter Lauf', lastRun && lastRun.detail ? lastRun.detail : '—', 'Zeitpunkt des letzten Aufrufs')));
+    card.append(el('p', { class: 'note', text: 'Das Kontingent lässt sich über die CLI nicht auslesen. Statt einer geschätzten Zahl steht hier nur, was belegbar ist — geprüft einmal am Tag.' }));
+    box.append(card);
+  }
+}
+
+function renderMessages(board) {
+  const box = $('#live-messages');
+  if (!box) return;
+  clear(box);
+  const msgs = board ? board.messages || [] : [];
+  const agents = board ? board.agents || [] : [];
+
+  const card = el('div', { class: 'card' });
+  card.append(el('h2', { class: 'sec', text: 'Kontakt zwischen den Agenten' }));
+  card.append(el('p', { class: 'sub', text: 'Nachrichten landen beim nächsten Daemon-Lauf im Postfach des Zielprofils (INBOX.md) — dort lesen die Agenten sie zu Beginn ihrer Arbeit.' }));
+
+  if (!msgs.length) {
+    card.append(emptyState('Noch keine Nachrichten.'));
+  } else {
+    card.append(el('div', {}, ...msgs.slice(0, 10).map((m) => el('div', { class: 'inc' },
+      el('div', { class: 'tm', text: fmtTime.format(dateOf(m.ts) || new Date()) }),
+      el('div', {},
+        el('div', { text: (m.from_agent || '—') + ' → ' + (m.to_agent || '—') }),
+        el('div', { class: 'step', text: m.body || '' }),
+        el('div', { class: 'role', text: m.delivered_at ? 'zugestellt' : 'wartet auf Zustellung' }))))));
+  }
+
+  if (agents.length) {
+    const from = el('select', { class: 'inp' }, ...agents.map((a) => el('option', { value: a.key, text: a.name || a.key })));
+    const to = el('select', { class: 'inp' }, ...agents.map((a) => el('option', { value: a.key, text: a.name || a.key })));
+    to.value = 'jarvis';
+    const body = el('textarea', { class: 'inp', rows: 2, placeholder: 'Kurze Nachricht …' });
+    const msg = el('p', { class: 'msg' });
+    const btn = el('button', { class: 'btn acc', type: 'button', text: 'Nachricht senden' });
+    btn.addEventListener('click', () => guard(btn, async () => {
+      const res = await rpc('send_message', { p_from: from.value, p_to: to.value, p_body: body.value.trim() });
+      if (!res || !res.ok) { setMsg(msg, reasonText(res), 'bad'); return; }
+      body.value = '';
+      setMsg(msg, 'Eingereiht — wird beim nächsten Lauf zugestellt.', 'ok');
+      refresh();
+    }));
+    card.append(el('div', { class: 'row' }, from, el('span', { class: 'role', text: '→' }), to),
+      body, el('div', { class: 'row' }, btn), msg);
+  }
+  box.append(card);
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = String(reader.result || '');
+      resolve(data.slice(data.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function wireVoice() {
+  const btn = $('#voice-btn');
+  const status = $('#voice-state');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+
+  let recorder = null;
+  let chunks = [];
+  let started = 0;
+  const setStatus = (text, cls) => {
+    if (!status) return;
+    status.textContent = text;
+    status.className = 'voice-state ' + (cls || '');
+  };
+
+  btn.addEventListener('click', async () => {
+    if (recorder && recorder.state === 'recording') {
+      recorder.stop();
+      return;
+    }
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      setStatus('Dieser Browser kann nicht aufnehmen.', 'bad');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = [];
+      started = Date.now();
+      const type = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+        : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+      recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        btn.textContent = 'Sprachnachricht an JARVIS';
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size < 2000) { setStatus('Aufnahme zu kurz.', 'warn'); return; }
+        setStatus('Wird übertragen …', 'warn');
+        try {
+          const b64 = await blobToBase64(blob);
+          const res = await rpc('submit_voice', {
+            p_audio: b64,
+            p_mime: blob.type || 'audio/webm',
+            p_duration_ms: Date.now() - started,
+          });
+          if (!res || !res.ok) { setStatus(reasonText(res), 'bad'); return; }
+          setStatus('Angekommen — wird auf dem Mac transkribiert (dauert ein paar Sekunden).', 'ok');
+          setTimeout(refresh, 6000);
+        } catch (err) {
+          setStatus('Übertragung fehlgeschlagen.', 'bad');
+        }
+      };
+      recorder.start();
+      btn.textContent = 'Aufnahme stoppen';
+      setStatus('Aufnahme läuft …', 'warn');
+    } catch (err) {
+      setStatus('Mikrofon nicht freigegeben.', 'bad');
+    }
+  });
+}

@@ -379,3 +379,47 @@ footer.foot{
 @media (prefers-reduced-motion:reduce){
   #toast{transition:none}
 }
+
+/* ---------------------------------------------------------------- Ausbaustufe 2 */
+
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0 4px}
+.voice-state{font-size:12px;color:var(--muted, #8b95a5)}
+.voice-state.warn{color:#ffb02e}
+.voice-state.ok{color:#35d07f}
+.voice-state.bad{color:#ff5c5c}
+
+.digest{background:#131a22;border:1px solid #24303d;border-radius:10px;padding:10px 14px;
+  font-size:13px;color:#b9c2cf;margin:0 0 14px}
+.digest b{color:#e8ecf2}
+
+.tafel{background:linear-gradient(180deg,#141a20,#10151a);border:1px solid #26303a;
+  border-radius:14px;padding:18px 20px;margin:0 0 20px}
+.tafel-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  border-bottom:1px solid #22303c;padding-bottom:9px;margin-bottom:12px}
+.tafel-title{font-size:12px;letter-spacing:1.1px;text-transform:uppercase;color:#8b95a5;font-weight:650}
+.tafel-meta{font-size:11px;color:#6d7885}
+.tafel-body{font-size:16px;line-height:1.62;color:#e2e8f0;white-space:pre-wrap}
+.tafel-edit{margin-top:12px}
+.tafel-edit summary{cursor:pointer;font-size:12px;color:#8b95a5;list-style:none}
+.tafel-edit summary::-webkit-details-marker{display:none}
+.tafel-edit summary::before{content:"✎ ";}
+.tafel-edit textarea{margin-top:10px}
+
+.tokrow{display:grid;grid-template-columns:120px 1fr 90px;gap:10px;align-items:center;
+  padding:7px 0;border-bottom:1px solid #1e242c;font-size:12.5px}
+.tokrow:last-of-type{border-bottom:0}
+.tokname{color:#cdd6e3;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tokval{text-align:right;color:#8b95a5}
+.tokbar{display:flex;height:9px;border-radius:99px;overflow:hidden;background:#1b222b}
+.tokbar i{display:block;height:100%}
+.legend{display:flex;gap:16px;font-size:11px;color:#8b95a5;margin-top:10px}
+.legend i,.legend span i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+i.t-in,.legend .t-in{background:#4da3ff}
+i.t-out,.legend .t-out{background:#35d07f}
+i.t-cache,.legend .t-cache{background:#4a5a6b}
+
+.heat-head{display:grid;grid-template-columns:54px repeat(8,1fr);gap:2px;font-size:10px;color:#6d7885;margin-bottom:4px}
+.heat-row{display:grid;grid-template-columns:54px repeat(24,1fr);gap:2px;align-items:center;margin-bottom:2px}
+.heat-label{font-size:10.5px;color:#8b95a5}
+.heat-tick{text-align:left}
+.heat-cell{height:13px;border-radius:2px;display:block}

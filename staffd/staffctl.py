@@ -141,6 +141,38 @@ def cmd_task(api: Api, args) -> int:
     return 0
 
 
+def cmd_followup(api: Api, args) -> int:
+    """Folgearbeit vorschlagen. Der Agent faengt NICHT selbst an — Jan entscheidet."""
+    row = {
+        "requested_by": args.agent,
+        "kind": "followup",
+        "title": args.title or ("Folgearbeit nach: " + (args.after or "")),
+        "question": args.proposal,
+        "recommendation": args.reason,
+        "estimate_minutes": args.minutes,
+        "after_task_title": args.after,
+        "cost_eur": args.cost_eur,
+        "risk": "low",
+        "default_decision": "deny",   # ohne Antwort passiert nichts
+        "expires_at": None,           # bleibt offen, bis Jan entscheidet
+    }
+    created = api.insert("approvals", row)
+    if not created:
+        print("Folgearbeit nicht angelegt (Rechte prüfen).", file=sys.stderr)
+        return 1
+    api.insert("events", {"agent_key": args.agent, "kind": "followup",
+                          "message": "Folgearbeit vorgeschlagen (%s min): %s" % (args.minutes, args.title or args.after)})
+    print("Folgearbeit angefragt: %s" % created[0]["id"])
+    print("Geschätzte Dauer: %s Minuten. Jan entscheidet im Board; bis dahin nicht anfangen." % args.minutes)
+    return 0
+
+
+def cmd_msg(api: Api, args) -> int:
+    created = api.insert("messages", {"from_agent": args.sender, "to_agent": args.to, "body": args.body})
+    print("Nachricht an %s vermerkt%s" % (args.to, "" if created else " (Rechte prüfen)"))
+    return 0
+
+
 def cmd_status(api: Api, args) -> int:
     open_approvals = api.select("approvals", "status=eq.open&select=id,title,requested_by,created_at")
     tasks = api.select("tasks", "status=neq.done&select=id,agent_key,title,status")
@@ -187,6 +219,23 @@ def main() -> int:
     p.add_argument("--step")
     p.add_argument("--progress", type=int)
     p.set_defaults(func=cmd_task)
+
+
+    p = sub.add_parser("followup", help="Folgearbeit nach erledigter Karte vorschlagen")
+    p.add_argument("--agent", required=True)
+    p.add_argument("--after", required=True, help="Titel der gerade fertig gewordenen Arbeit")
+    p.add_argument("--proposal", required=True, help="Was als Nächstes sinnvoll wäre")
+    p.add_argument("--minutes", type=int, required=True, help="Geschätzte Dauer in Minuten")
+    p.add_argument("--title")
+    p.add_argument("--reason")
+    p.add_argument("--cost-eur", type=float)
+    p.set_defaults(func=cmd_followup)
+
+    p = sub.add_parser("msg", help="Nachricht an einen anderen Agenten")
+    p.add_argument("--from", dest="sender", required=True)
+    p.add_argument("--to", required=True)
+    p.add_argument("--body", required=True)
+    p.set_defaults(func=cmd_msg)
 
     p = sub.add_parser("status", help="offene Freigaben und Karten zeigen")
     p.set_defaults(func=cmd_status)

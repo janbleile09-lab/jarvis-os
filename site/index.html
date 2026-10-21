@@ -95,6 +95,12 @@
       <div class="pills" id="pills"></div>
     </header>
 
+    <div class="toolbar">
+      <button class="btn acc" type="button" id="voice-btn">Sprachnachricht an JARVIS</button>
+      <span class="voice-state" id="voice-state"></span>
+      <a class="btn plain" id="briefing-link" href="#" target="_blank" rel="noopener" hidden>Morgenbriefing</a>
+    </div>
+
     <nav class="tabs" id="tabs">
       <button type="button" data-view="overview" class="on">Übersicht</button>
       <button type="button" data-view="live">Live-Board</button>
@@ -106,6 +112,8 @@
 
     <main>
       <section class="view on" id="pane-overview" data-pane="overview">
+        <div id="overview-digest"></div>
+        <div id="overview-blackboard"></div>
         <h2 class="sec"><span class="n">01</span>Die Firma</h2>
         <div id="overview-org"></div>
         <h2 class="sec"><span class="n">02</span>Live-Karten</h2>
@@ -117,6 +125,7 @@
         <p class="lead-text">Karten, Verlauf und Anweisungen je Agent. Anweisungen landen in der
           Warteschlange und werden vom Daemon an Hermes übergeben.</p>
         <div id="live-body"></div>
+        <div id="live-messages"></div>
       </section>
 
       <section class="view" id="pane-approvals" data-pane="approvals">
