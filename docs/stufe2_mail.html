@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Staff Board — Ausbaustufe 2</title>
+<style>
+  body{margin:0;padding:0;background:#f4f5f7}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 22px 40px;background:#ffffff;
+        font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+        font-size:17px;line-height:1.62;color:#22262c}
+  h1{font-size:26px;line-height:1.25;margin:0 0 6px;color:#0f1318;font-weight:700;letter-spacing:-.2px}
+  .kicker{font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:#8a929e;margin:0 0 18px;font-weight:600}
+  h2{font-size:20px;margin:32px 0 10px;color:#0f1318;font-weight:700}
+  h3{font-size:17px;margin:20px 0 6px;color:#0f1318;font-weight:650}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:22px}
+  li{margin:0 0 9px}
+  table{width:100%;border-collapse:collapse;font-size:15px;margin:12px 0 18px}
+  th{text-align:left;font-size:12.5px;letter-spacing:.7px;text-transform:uppercase;color:#6d7581;
+     font-weight:650;padding:8px 10px;border-bottom:2px solid #dfe2e7}
+  td{padding:9px 10px;border-bottom:1px solid #eceef1;vertical-align:top;color:#2b3138}
+  tr.alt td{background:#f6f7f9}
+  td.k{font-weight:650;color:#0f1318;white-space:nowrap}
+  .box{background:#f6f8fb;border-left:4px solid #3f7fd4;padding:14px 16px;margin:16px 0;border-radius:0 6px 6px 0;font-size:16px}
+  .box.warn{background:#fdf8ef;border-left-color:#d99a24}
+  .box.ok{background:#f2f9f4;border-left-color:#2f9e5f}
+  .small{font-size:14.5px;color:#5c646e}
+  .foot{font-size:13.5px;color:#8a929e;margin-top:26px;border-top:1px solid #e6e8ec;padding-top:14px}
+  a{color:#2b6cb0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">Ausbaustufe 2 · JARVIS OS</p>
+  <h1>Mehr Zahlen, Folgearbeit mit Freigabe, Sprachbefehl und eine Tafel</h1>
+  <p>Alles ist live auf <a href="https://janbleile09-lab.github.io/jarvis-os/">janbleile09-lab.github.io/jarvis-os</a> — dieselbe Adresse, neue Inhalte. Du musst nichts neu einrichten, nur die Seite neu laden.</p>
+
+  <h2>1. Analytik — wo die Token hingehen und wann gearbeitet wird</h2>
+  <ul>
+    <li><b>Token je Agent, aufgeschlüsselt</b> nach Eingabe, Ausgabe und Cache. Damit siehst du sofort, dass der Löwenanteil Cache-Lesen ist — also billig — und nicht neue Rechenarbeit.</li>
+    <li><b>Aktivitätsraster:</b> sieben Tage × 24 Stunden, Helligkeit = Aktivität. Nachtschichten und Löcher sind auf einen Blick erkennbar.</li>
+    <li><b>Antigravity-Kachel:</b> Läufe heute, Läufe insgesamt, letzter Lauf — einmal am Tag geprüft.</li>
+    <li><b>Rückwirkend gefüllt:</b> Ich habe die Stundenwerte der letzten sieben Tage aus den Session-Datenbanken nachgetragen, damit die Diagramme nicht leer starten. Insgesamt 3,5 Milliarden Token in sieben Tagen, davon 3,37 Milliarden in meiner eigenen Sitzung.</li>
+  </ul>
+  <p class="small">Die Stundenwerte schreibt der Daemon alle fünf Minuten neu, nicht nur stündlich — du siehst also aktuelle Zahlen, ohne dass die Seite selbst rechnen muss.</p>
+
+  <h2>2. Folgearbeit: der Agent fragt, du entscheidest</h2>
+  <p>Wenn ein Agent eine Karte abschließt, prüft er jetzt, ob daraus ein sinnvoller nächster Schritt folgt. Er fängt <b>nicht</b> von allein an, sondern stellt eine Anfrage mit Vorschlag, Begründung und geschätzter Dauer. In der Freigabe-Inbox steht dann:</p>
+  <div class="box">
+    „Folgearbeit nach: Bildcache prüfen — Rezeptfotos neu indizieren. <b>Dauer 45 min</b>, Kosten 1,20 €.
+    Standard: ablehnen."
+  </div>
+  <p>Ein Tipp auf „Genehmigen" und der Daemon legt die Karte beim Agenten an — erst dann läuft es. „Ablehnen" beendet es endgültig. Ohne Antwort passiert nichts, weil die Standard-Entscheidung auf ablehnen steht und es keine Frist gibt.</p>
+  <p class="small">In den fünf Agenten-Profilen steht die Anweisung jetzt drin, inklusive des Werkzeugs dafür (<b>staffctl followup</b>).</p>
+
+  <h2>3. Die Tafel</h2>
+  <p>Oben auf der Übersicht steht ein schwarzes Brett mit maximal 900 Zeichen: was wichtig ist, was du tun musst, was gerade läuft — ohne Zahlenkolonnen, mit Zeitstempel darunter. Darüber die Zeile <b>„Seit deinem letzten Besuch"</b>: erledigte Karten, Ereignisse, offene Freigaben, Vorfälle. Beides ist jederzeit über „Tafel bearbeiten" änderbar.</p>
+
+  <h2>4. Sprachnachricht an JARVIS</h2>
+  <p>Oben rechts ist ein Knopf <b>„Sprachnachricht an JARVIS"</b>. Antippen, sprechen, nochmal antippen. Der Ton geht verschlüsselt in die Datenbank, wird auf deinem Mac lokal transkribiert (Apple-Spracherkennung, nichts geht an einen Dienst) und landet als Anweisung bei mir — ich sehe sie beim nächsten Lauf und arbeite sie ab.</p>
+  <div class="box warn">
+    <b>Das musst du einmal selbst probieren.</b> Die Aufnahme braucht eine Mikrofon-Freigabe im Browser, und mein Testbrowser hat kein Mikrofon. Die Kette dahinter ist geprüft: Ich habe eine echte Audiodatei durchgeschickt, sie wurde korrekt transkribiert („Charlie hier. Die Displaykarte ist fertig…") und als Anweisung angelegt. Wenn beim ersten Tippen etwas hängt, sag es mir — dann liegt es an der Freigabe, nicht am Rest.
+  </div>
+
+  <h2>5. Agenten reden miteinander</h2>
+  <p>Im Live-Board gibt es jetzt einen Kontaktbereich: Nachrichten von Agent zu Agent (oder von dir an einen Agenten). Der Daemon legt sie beim nächsten Lauf in das Postfach des Zielprofils, und die Agenten lesen es zu Beginn ihrer Arbeit. Getestet mit einer echten Nachricht von peter an luca.</p>
+
+  <h2>Was ich geprüft habe</h2>
+  <table>
+    <tr><th>Prüfung</th><th>Ergebnis</th></tr>
+    <tr><td class="k">Anmeldung und Geräteschutz</td><td>Unverändert: ohne freigeschaltetes Gerät keine Daten, auch nicht mit gültigem Login.</td></tr>
+    <tr class="alt"><td class="k">Neue Ansichten</td><td>Alle sechs Ansichten im Browser durchgeklickt, keine Konsolenfehler, Tafel, Raster und Aufschlüsselung rendern mit echten Daten.</td></tr>
+    <tr><td class="k">Folgearbeit</td><td>Anfrage erzeugt, genehmigt, Karte beim Agenten angelegt, als ausgeführt markiert. Testdaten danach entfernt.</td></tr>
+    <tr class="alt"><td class="k">Sprachbefehl</td><td>Audio durch die ganze Kette geschickt, Transkript korrekt, Anweisung angelegt, Audiodatei nach dem Verarbeiten gelöscht.</td></tr>
+    <tr><td class="k">Agentenkontakt</td><td>Nachricht angelegt und im Postfach des Zielprofils zugestellt.</td></tr>
+    <tr class="alt"><td class="k">Daemon</td><td>Läuft weiter unter launchd, keine Fehler, schreibt jetzt zusätzlich Aufschlüsselung, Raster, Nutzung und Sprachverarbeitung.</td></tr>
+  </table>
+
+  <h2>Was ehrlich noch fehlt</h2>
+  <ul>
+    <li><b>Antigravity-Limits</b> lassen sich über die CLI nicht auslesen. Ich zeige deshalb nur, was belegbar ist: Anzahl der Läufe und den letzten Zeitpunkt. Keine geschätzte Prozentzahl, die niemand prüfen kann.</li>
+    <li><b>„Karten heute"</b> zählt weiterhin nur, was der Daemon selbst beobachtet hat. Für die Zeit davor gibt es keine verlässliche Quelle — lieber eine Null als eine erfundene Zahl.</li>
+    <li><b>Folgearbeit hängt am Agenten:</b> Der Mechanismus verhindert, dass ohne dich gestartet wird. Ob ein Agent von sich aus einen guten Vorschlag macht, hängt davon ab, ob er die Anweisung im Profil befolgt. Wenn du merkst, dass er es schleifen lässt, sag es — dann schärfe ich die Anweisung nach.</li>
+    <li><b>Die vier Cron-Zustellungen und der knappe Speicher</b> (14 GB) sind unverändert offen. Beides braucht deine Entscheidung, wohin die Berichte gehen sollen.</li>
+  </ul>
+
+  <p>Öffne die Analytik einmal mit deinem Login — dort ist der größte Unterschied zu vorher. Und probier den Sprachknopf aus; das ist der Teil, bei dem ich dein Mikrofon brauche.</p>
+
+  <div class="foot">
+    Gebaut von JARVIS · 21. Oktober 2026, 14:50 Uhr · Repository: github.com/janbleile09-lab/jarvis-os<br>
+    Keine Testdaten im Board: Freigaben, Nachrichten, Sprachnotizen und Metriken sind echt; meine Prüfzeilen habe ich entfernt.
+  </div>
+
+</div>
+</body>
+</html>
