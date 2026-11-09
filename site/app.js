@@ -242,6 +242,10 @@ const state = {
   openCrit: null,      // Kriterien-Schlüssel mit offenem Editor
   revokedConfirm: null,
   chat: { threadId: null, thread: null, messages: [], loading: false, error: null },
+  website: null,        // lumen.stats(): Reichweite der Laternen-Seite
+  websiteAt: 0,
+  websiteDays: 30,
+  websiteError: null,
 };
 
 /* ================================================================ Gerätetoken */
@@ -341,6 +345,10 @@ function setView(view) {
     pane.classList.toggle('on', pane.dataset.pane === view);
   }
   renderActiveView(true);
+  // Die Website-Zahlen sind nicht Teil von staff.board() — beim Öffnen frisch holen.
+  if (view === 'website') {
+    refreshWebsite(true).finally(() => { if (state.view === 'website') renderActiveView(true); });
+  }
 }
 
 /* ================================================================ Zugang */
@@ -716,6 +724,7 @@ async function refresh(force = false) {
       if (live && live.ok) state.jarvis = live;
     } catch { /* egal */ }
     await refreshPodcast();
+    await refreshWebsite();
     renderChrome();
     renderActiveView(force);
   } catch (e) {
@@ -784,6 +793,7 @@ const PANES = {
   approvals: renderApprovals,
   overview: renderOverview,
   analytics: renderAnalytics,
+  website: renderWebsite,
   readiness: renderReadiness,
   ops: renderOps,
 };
@@ -1675,6 +1685,262 @@ function buildChart(days) {
 
   return root;
 }
+
+/* ================================================================ 04b Website */
+
+/* ================================================================ 04b Website (lumenrib.me) */
+
+// Eigener Endpunkt: Supabase-Schema `lumen`, nur für Jans vertrautes Gerät.
+// Dieselbe Client-Instanz, aber ein eigenes Schema — deshalb ein direkter
+// fetch statt sb.rpc(), weil supabase-js das Schema pro Client fixiert.
+const LUMEN_SCHEMA = 'lumen';
+
+async function lumenRpc(name, args = {}) {
+  const { data } = await sb.auth.getSession();
+  const token = data && data.session ? data.session.access_token : SUPABASE_PUBLISHABLE_KEY;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_PUBLISHABLE_KEY,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Content-Profile': LUMEN_SCHEMA,
+      'x-device-token': deviceToken(),
+    },
+    body: JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`Website RPC ${name}: HTTP ${res.status}`);
+  return res.json();
+}
+
+async function refreshWebsite(force = false) {
+  const now = Date.now();
+  if (!force && state.websiteAt && now - state.websiteAt < 15000) return;
+  try {
+    const res = await lumenRpc('stats', { p_days: state.websiteDays || 30 });
+    if (res && res.ok) {
+      state.website = res;
+      state.websiteAt = now;
+      state.websiteError = null;
+    } else {
+      state.websiteError = (res && res.reason) || 'unavailable';
+    }
+  } catch (e) {
+    state.websiteError = e.message || 'unavailable';
+  }
+}
+
+function renderWebsite() {
+  const box = $('#website-body');
+  if (!box) return;
+  clear(box);
+
+  const d = state.website;
+  if (state.websiteError === 'device_not_trusted') {
+    box.append(emptyState('This device is not trusted for website figures. Sign in and approve the device first.'));
+    return;
+  }
+  if (!d) {
+    box.append(emptyState(state.websiteError ? `Website figures unavailable (${state.websiteError}).` : 'Loading website figures …'));
+    return;
+  }
+
+  const on = d.online || {};
+  const t = d.totals || {};
+
+  // Zeitraum wählen — dieselbe Ansicht, anderer Fensterausschnitt
+  const ranges = el('div', { class: 'row', style: { gap: '8px', marginBottom: '12px' } });
+  for (const days of [7, 30, 90]) {
+    const active = num(d.days) === days;
+    const b = el('button', {
+      class: `btn ${active ? 'acc' : 'plain'}`, type: 'button',
+      text: days === 1 ? 'Today' : `${days} days`,
+    });
+    b.addEventListener('click', () => guard(b, async () => {
+      state.websiteDays = days;
+      await refreshWebsite(true);
+      renderActiveView(true);
+    }));
+    ranges.append(b);
+  }
+  box.append(ranges);
+
+  box.append(el('div', { class: 'kpis' },
+    kpi('On the site now', fmtInt(on.now), 'active in the last 90 seconds'),
+    kpi('Visitors today', fmtInt(on.today), 'distinct people since midnight'),
+    kpi('STL downloads', fmtInt(t.downloads), `${fmtInt(t.download_visitors)} people, last ${d.days} days`),
+    kpi('New messages', fmtInt(t.contacts_new), `${fmtInt(t.contacts)} in ${d.days} days`)));
+
+  /* --- Reichweite je Tag --- */
+  const perDay = (d.daily || []).map((r) => [String(r.day), { views: num(r.pageviews), visitors: num(r.visitors), downloads: num(r.downloads) }]);
+  const chartBox = el('div', { class: 'box' },
+    el('h3', { text: 'Page views, visitors and downloads per day' }),
+    el('p', { class: 'sub', text: `Last ${d.days} days, Berlin time. Bars = page views, line = visitors.` }));
+  if (!perDay.length) {
+    chartBox.append(emptyState('No visits recorded yet.'));
+  } else {
+    chartBox.append(buildSiteChart(perDay));
+    chartBox.append(el('div', { class: 'legend' },
+      el('span', {}, el('i', { style: { background: '#3d6d94' } }), 'Page views'),
+      el('span', {}, el('i', { style: { background: '#4da3ff' } }), 'Visitors')));
+  }
+
+  /* --- Wo sie sind und woher sie kommen --- */
+  const side = el('div', { class: 'box' }, el('h3', { text: 'Where they land' }));
+  const paths = d.paths || [];
+  if (!paths.length) {
+    side.append(emptyState('No data yet.'));
+  } else {
+    side.append(el('table', { class: 'rub' }, el('tbody', {}, ...paths.slice(0, 8).map((p) =>
+      el('tr', {},
+        el('td', {}, el('span', { class: 'mono', text: String(p.path || '/').slice(0, 42) })),
+        el('td', { class: 'num', text: fmtInt(p.views) }))))));
+  }
+  const refs = d.referrers || [];
+  if (refs.length) {
+    side.append(el('h3', { style: { marginTop: '14px' }, text: 'Referrers' }));
+    side.append(el('table', { class: 'rub' }, el('tbody', {}, ...refs.slice(0, 6).map((r) =>
+      el('tr', {},
+        el('td', {}, el('span', { text: String(r.ref || 'direct').slice(0, 42) })),
+        el('td', { class: 'num', text: fmtInt(r.n) }))))));
+  }
+  const dev = d.devices || [];
+  if (dev.length) {
+    side.append(el('h3', { style: { marginTop: '14px' }, text: 'Devices' }));
+    side.append(el('table', { class: 'rub' }, el('tbody', {}, ...dev.map((r) =>
+      el('tr', {}, el('td', { text: String(r.device || '?') }), el('td', { class: 'num', text: fmtInt(r.n) }))))));
+  }
+
+  box.append(el('div', { class: 'two' }, chartBox, side));
+
+  /* --- Wer gerade drauf ist --- */
+  const live = d.live || [];
+  box.append(el('h2', { class: 'sec', text: 'On the site right now' }));
+  if (!live.length) {
+    box.append(emptyState('Nobody on the site in the last five minutes.'));
+  } else {
+    box.append(el('div', { class: 'card' }, el('div', { class: 'tbl-wrap' },
+      el('table', { class: 'tbl' },
+        el('thead', {}, el('tr', {},
+          el('th', { text: 'Visitor' }), el('th', { text: 'Seen' }), el('th', { text: 'Page' }),
+          el('th', { text: 'Lang' }), el('th', { text: 'Device' }),
+          el('th', { class: 'num', text: 'Views' }), el('th', { class: 'num', text: 'STL' }))),
+        el('tbody', {}, ...live.map((r) => el('tr', {},
+          el('td', {}, el('span', { class: 'mono', text: String(r.visitor || '—') })),
+          el('td', { text: fmtAge(r.last_seen) }),
+          el('td', {}, el('span', { class: 'mono', text: String(r.last_path || r.entry_path || '/').slice(0, 30) })),
+          el('td', { text: String(r.lang || '—').toUpperCase() }),
+          el('td', { text: r.device || '—' }),
+          el('td', { class: 'num', text: fmtInt(r.pageviews) }),
+          el('td', { class: 'num', text: fmtInt(r.downloads) }))))))));
+  }
+
+  /* --- Downloads mit Modellmaßen --- */
+  const dl = d.last_downloads || [];
+  if (dl.length) {
+    box.append(el('h2', { class: 'sec', text: 'Latest STL downloads' }));
+    box.append(el('div', { class: 'card' }, el('div', { class: 'tbl-wrap' },
+      el('table', { class: 'tbl' },
+        el('thead', {}, el('tr', {},
+          el('th', { text: 'When' }), el('th', { class: 'num', text: 'Body Ø' }),
+          el('th', { class: 'num', text: 'Height' }), el('th', { class: 'num', text: 'Candle Ø' }),
+          el('th', { class: 'num', text: 'Ribs' }), el('th', { text: 'Motif' }), el('th', { text: 'Lang' }))),
+        el('tbody', {}, ...dl.map((r) => {
+          const m = r.meta || {};
+          const ax = (v, unit) => (v === null || v === undefined ? '—' : `${num(v)}${unit}`);
+          return el('tr', {},
+            el('td', { text: fmtWhen(r.ts) }),
+            el('td', { class: 'num', text: ax(m.dia, ' mm') }),
+            el('td', { class: 'num', text: ax(m.height, ' mm') }),
+            el('td', { class: 'num', text: ax(m.candle, ' mm') }),
+            el('td', { class: 'num', text: ax(m.ribs, '') }),
+            el('td', { text: String(m.motif || '—') }),
+            el('td', { text: String(r.lang || '—').toUpperCase() }));
+        }))))));
+  }
+
+  /* --- Kontaktnachrichten --- */
+  const msgs = d.messages || [];
+  box.append(el('h2', { class: 'sec', text: 'Contact messages' }));
+  if (!msgs.length) {
+    box.append(emptyState('No messages yet.'));
+  } else {
+    for (const m of msgs) {
+      const head = el('div', { class: 'row', style: { justifyContent: 'space-between', gap: '10px' } },
+        el('b', { text: `${m.name || '?'} · ${m.email || '?'}` }),
+        el('span', { class: 'mono', text: fmtWhen(m.ts) }));
+      const body = el('p', { class: 'lead-text', style: { whiteSpace: 'pre-wrap', margin: '6px 0 10px' }, text: String(m.message || '') });
+      const meta = el('p', { class: 'sub', text: [m.topic, m.project, `status: ${m.status}`].filter(Boolean).join(' · ') });
+      const actions = el('div', { class: 'row', style: { gap: '8px', marginTop: '8px' } });
+      for (const [status, label] of [['read', 'Read'], ['done', 'Done'], ['spam', 'Spam']]) {
+        const b = el('button', { class: 'btn plain', type: 'button', text: label, disabled: m.status === status });
+        b.addEventListener('click', () => guard(b, async () => {
+          await lumenRpc('set_message_status', { p_id: m.id, p_status: status });
+          await refreshWebsite(true);
+          renderActiveView(true);
+        }));
+        actions.append(b);
+      }
+      const reply = el('a', {
+        class: 'btn plain',
+        href: `mailto:${encodeURIComponent(m.email || '')}?subject=${encodeURIComponent('Re: your Lumenrib message')}`,
+        text: 'Reply',
+      });
+      actions.append(reply);
+      box.append(el('div', { class: 'card', style: { padding: '14px' } }, head, body, meta, actions));
+    }
+  }
+
+  box.append(el('p', { class: 'note' },
+    `Server time ${fmtWhen(d.now)} · window ${d.days} days. Counters come from the site's own `
+    + `tracking script; the browser stores nothing.`));
+}
+
+function buildSiteChart(rows) {
+  const W = 420;
+  const H = 140;
+  const bottom = 108;
+  const padL = 4;
+  const padR = 4;
+  const innerW = W - padL - padR;
+  const maxViews = Math.max(1, ...rows.map(([, g]) => g.views));
+  const maxVis = Math.max(1, ...rows.map(([, g]) => g.visitors));
+  const slot = innerW / rows.length;
+  const barW = Math.max(5, Math.min(16, slot * 0.5));
+
+  const root = svg('svg', {
+    viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img',
+    'aria-label': 'Page views and visitors per day',
+  });
+  for (const y of [bottom, bottom - 32, bottom - 64, bottom - 96]) {
+    root.append(svg('line', { x1: padL, y1: y, x2: W - padR, y2: y, class: y === bottom ? 'axis' : 'gridline' }));
+  }
+  const points = [];
+  rows.forEach(([key, g], i) => {
+    const x = padL + slot * i + (slot - barW) / 2;
+    const h = Math.max(2, (g.views / maxViews) * 86);
+    root.append(svg('rect', {
+      x, y: bottom - h, width: barW, height: h, rx: 2,
+      fill: i === rows.length - 1 ? '#3d6d94' : '#2c3a4a',
+    }));
+    const cx = padL + slot * i + slot / 2;
+    points.push([cx, bottom - Math.max(3, (g.visitors / maxVis) * 86)]);
+    const label = svg('text', { x: cx, y: H - 12, 'text-anchor': 'middle' });
+    label.textContent = fmtDay.format(new Date(`${key}T12:00:00`));
+    root.append(label);
+  });
+  if (points.length > 1) {
+    root.append(svg('polyline', {
+      points: points.map((p) => p.join(',')).join(' '),
+      fill: 'none', stroke: '#4da3ff', 'stroke-width': 2, 'stroke-linejoin': 'round',
+    }));
+  }
+  const last = points[points.length - 1];
+  if (last) root.append(svg('circle', { cx: last[0], cy: last[1], r: 3.5, fill: '#4da3ff' }));
+  return root;
+}
+
+
 
 /* ================================================================ 05 Marktreife */
 
